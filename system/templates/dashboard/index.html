@@ -324,6 +324,7 @@
 </div>
 
 {{ charts|json_script:"dash-charts" }}
+<!-- chart.js@4 — vendored locally for offline-safe dashboard rendering -->
 <script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
 <script>
 (function () {

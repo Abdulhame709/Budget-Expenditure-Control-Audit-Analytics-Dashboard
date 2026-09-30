@@ -40,6 +40,7 @@ SYNTHETIC_DECLARATION = (
 )
 
 DS_PASSWORD = "Dataset-Training-2026!"
+ADMIN_PASSWORD = "Admin-Training-2026!"
 
 # ============================================================ dimensions
 FISCAL_YEAR = {
@@ -431,6 +432,24 @@ def load_training_dataset(*, verbosity: int = 0) -> dict:
             role = Role.objects.get(code=spec["role"])
             UserRole.objects.get_or_create(user=user, role=role)
             users[spec["username"]] = user
+
+        # Keep the documented ``admin`` login as a stable convenience alias
+        # for demonstrations while retaining ``ds_admin`` for dataset-owned
+        # audit records and the original four role fixtures.
+        demo_admin, _ = User.objects.get_or_create(
+            username="admin",
+            defaults={"is_staff": True, "is_superuser": True},
+        )
+        if (
+            not demo_admin.is_staff
+            or not demo_admin.is_superuser
+            or not demo_admin.check_password(ADMIN_PASSWORD)
+        ):
+            demo_admin.is_staff = True
+            demo_admin.is_superuser = True
+            demo_admin.set_password(ADMIN_PASSWORD)
+            demo_admin.save(update_fields=["is_staff", "is_superuser", "password"])
+        UserRole.objects.get_or_create(user=demo_admin, role=Role.objects.get(code="admin"))
         stats["users"] = len(users)
 
         # ---------------------------------------------------- dimensions

@@ -96,18 +96,23 @@
   </div>
   <div class="col-lg-6">
     <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-white fw-bold">أساس لاحق: Budget vs Actual / Variance / Out-of-Budget</div>
+      <div class="card-header bg-white fw-bold">الربط الرقابي: Budget vs Actual / Variance / Out-of-Budget</div>
       <div class="card-body small text-muted">
-        هذه الصفحة تُظهر <strong>جانب الميزانية فقط</strong> من الحساب (من DB).
-        عند وصول وحدة المصروفات الفعلية (Actuals) ستُحتسب:
-        <ul class="mb-0">
-          <li><strong>Variance</strong> = فعلي − ميزانية (على مستوى السطر/الشهر عبر
-            <code>monthly_budget_map</code>).</li>
-          <li><strong>Out-of-Budget</strong> = مصروف بلا تغطية
-            (<code>is_budgeted</code> على نفس الإدارة+الحساب).</li>
-          <li><strong>Budget vs Actual</strong> = جدول يدمج هذين الجانبين.</li>
+        هذه الصفحة تُظهر <strong>جانب الميزانية المعتمدة</strong>.
+        للاطلاع على التحليل الرقابي المتكامل مع المصروفات الفعلية:
+        <ul class="mb-3">
+          <li><strong>Variance</strong> = فعلي − ميزانية (حسب الإدارة والحساب والفترة).</li>
+          <li><strong>Out-of-Budget</strong> = مصروفات بدون مخصص معتمد.</li>
+          <li><strong>Budget vs Actual</strong> = تقرير مقارنة الموازنة بالتنفيذ الفعلي.</li>
         </ul>
-        لم يُنفَّذ بعد (PHASE مخصّصة لاحقًا) — الأساس والاختبارات جاهزة.
+        <div class="d-flex gap-2">
+          <a href="{% url 'reports:report_detail' 'budget-vs-actual' %}" class="btn btn-sm btn-outline-primary">
+            تقرير الموازنة مقابل الفعلي
+          </a>
+          <a href="{% url 'reports:report_detail' 'out-of-budget' %}" class="btn btn-sm btn-outline-secondary">
+            المصروفات خارج الموازنة
+          </a>
+        </div>
       </div>
     </div>
   </div>

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}لوحة المؤشرات التحليلية{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
@@ -323,7 +324,7 @@
 </div>
 
 {{ charts|json_script:"dash-charts" }}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
 <script>
 (function () {
   const data = JSON.parse(document.getElementById("dash-charts").textContent);

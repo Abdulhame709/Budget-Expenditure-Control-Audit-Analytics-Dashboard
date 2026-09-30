@@ -63,12 +63,49 @@
 
 <div class="card mt-4 border-0 shadow-sm">
   <div class="card-body">
-    <h2 class="h6 text-muted">حالة البناء</h2>
-    <p class="mb-0 small">
-      هيكل المشروع (PHASE 2) جاهز: قاعدة بيانات PostgreSQL · مصادقة Django · هيكل 10 تطبيقات ·
-      قوالب RTL · تسجيل أخطاء · صفحات أخطاء · إعدادات بيئة متعددة.
-      الوحدات التشغيلية تُبنى في المراحل التالية بموافقة صريحة.
-    </p>
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom">
+      <div>
+        <h2 class="h5 mb-1 text-primary fw-bold">نظام التحليل الرقابي وضبط الموازنة والمصروفات</h2>
+        <p class="text-muted small mb-0">نظام تدقيق مالي ورقابي متكامل يعتمد على 14 فاحصاً آلياً لاكتشاف التجاوزات والانحرافات وتقييم المخاطر.</p>
+      </div>
+      <div>
+        <span class="badge text-bg-success px-3 py-2">النظام مكتمل وجاهز للتشغيل</span>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="border rounded p-3 h-100 bg-white">
+          <div class="fw-bold text-dark mb-1">لوحة المؤشرات والتحليلات</div>
+          <p class="text-muted small mb-2">متابعة الموازنة مقابل الفعلي ومعدل الاستخدام وتحليل المخاطر الرقابية.</p>
+          <a href="{% url 'dashboard:index' %}" class="btn btn-sm btn-outline-primary w-100">عرض اللوحة</a>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="border rounded p-3 h-100 bg-white">
+          <div class="fw-bold text-dark mb-1">محرك التدقيق والاستثناءات</div>
+          <p class="text-muted small mb-2">تشغيل 14 فاحصاً رقابياً وتصنيف الاستثناءات ومتابعة الملاحظات والتوصيات.</p>
+          <a href="{% url 'audit:cycle_hub' %}" class="btn btn-sm btn-outline-primary w-100">دورة المعالجة الرقابية</a>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="border rounded p-3 h-100 bg-white">
+          <div class="fw-bold text-dark mb-1">التقارير الرقابية والتصدير</div>
+          <p class="text-muted small mb-2">9 تقارير متخصصة تدعم الطباعة والتصدير إلى Excel (XLSX) و CSV.</p>
+          <a href="{% url 'reports:list' %}" class="btn btn-sm btn-outline-primary w-100">مركز التقارير</a>
+        </div>
+      </div>
+
+      <div class="col-12 col-md-6 col-lg-3">
+        <div class="border rounded p-3 h-100 bg-white">
+          <div class="fw-bold text-dark mb-1">استيراد ومراجعة البيانات</div>
+          <p class="text-muted small mb-2">خط أنابيب رفع ملفات Excel/CSV/PDF مع مرحلة المعاينة والتحقق الذري.</p>
+          <a href="{% url 'imports:list' %}" class="btn btn-sm btn-outline-primary w-100">شاشة الاستيراد</a>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

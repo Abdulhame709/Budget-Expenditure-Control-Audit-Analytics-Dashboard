@@ -21,7 +21,31 @@
 
 نظام داخلي (Internal Use) لمراقبة الموازنة مقابل التنفيذ (Budget vs Actual)، وتدقيق المصروفات والمشتريات، واكتشاف الاستثناءات وتصنيف المخاطر — بواجهة عربية RTL كاملة، ومحرك تدقيق من 14 اختبارًا آليًا، وتقارير قابلة للطباعة والتصدير.
 
-**الحالة**: Release Candidate · **المجموعة**: 334 اختبارًا آليًا ✅ (281 وحدة/تكامل + 53 ground-truth) · Django 5.2 LTS · PostgreSQL حصريًا (لا SQLite).
+**الحالة**: Release Candidate (RC) · Live Web Demo Active · **المجموعة**: 334 اختبارًا آليًا ✅ (281 وحدة/تكامل + 53 ground-truth) · Django 5.2 LTS · PostgreSQL 16 حصريًا (لا SQLite).
+
+---
+
+## 📌 Case Study (ملخص دراسة الحالة المهنية)
+
+> **Problem:** Internal audit and financial control teams often rely on fragmented spreadsheets and manual sampling to monitor expenditures against approved budgets. This disconnected workflow delays exception detection, lacks automated risk scoring, and creates blind spots in procurement compliance and documentation audit trails.
+>
+> **Approach:** As an Internal Audit & Financial Review Professional, I designed an end-to-end, reproducible audit analytics system based on genuine internal control standards, clear segregation of duties, and systematic ground-truth exception rules.
+>
+> **Build:** I engineered a database-driven web application using Django 5.2 and PostgreSQL 16. The system incorporates role-based access control across 30 permissions, 14 automated audit test evaluators, a three-stage import pipeline (Excel/CSV/PDF), interactive KPI dashboards, 9 exportable reports, and full audit logging.
+>
+> **Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, flagging exactly 28 predetermined exceptions with zero false positives across high, medium, and low risk tiers.
+>
+> **Evidence:** The codebase contains 334 passing automated tests, verified SHA-256 evidence artifacts, a live interactive web deployment, and transparent synthetic training data.
+
+*المستندات الكاملة لحزمة الـ Proof-of-Work متوفرة في المجلد [`output/phase19_proof_of_work/`](output/phase19_proof_of_work/):*
+- [`PROJECT_PROOF.md`](output/phase19_proof_of_work/PROJECT_PROOF.md) — وثيقة إثبات المشروع (Problem · Owner · Solution · Role · Tools · Evidence · Impact · Link)
+- [`PROJECT_CARD.md`](output/phase19_proof_of_work/PROJECT_CARD.md) — بطاقة المشروع التنفيذية
+- [`CASE_STUDY.md`](output/phase19_proof_of_work/CASE_STUDY.md) — دراسة الحالة المركزة
+- [`BEFORE_AFTER.md`](output/phase19_proof_of_work/BEFORE_AFTER.md) — مقارنة التحول قبل / بعد
+- [`TECHNICAL_ARCHITECTURE.md`](output/phase19_proof_of_work/TECHNICAL_ARCHITECTURE.md) — ملخص المعمارية التقنية
+- [`EVIDENCE_INDEX.md`](output/phase19_proof_of_work/EVIDENCE_INDEX.md) — فهرس الأدلة والبصمات
+- [`DEMO_INSTRUCTIONS.md`](output/phase19_proof_of_work/DEMO_INSTRUCTIONS.md) — دليل تجربة النظام وحسابات العرض
+- [`LIVE_DEMO_DESCRIPTION.md`](output/phase19_proof_of_work/LIVE_DEMO_DESCRIPTION.md) — وصف المعاينة الحية
 
 ---
 
@@ -62,7 +86,9 @@ PostgreSQL (حصري · D-01)  ← production: WhiteNoise · DEBUG=False · fail
 
 ```
 .
-├── README.md                                 # هذا الملف
+├── README.md                                 # هذا الملف (GitHub README final)
+├── LICENSE                                   # رخصة MIT
+├── Procfile · render.yaml                    # ملفات إعداد النشر السحابي (Render / Gunicorn)
 ├── .gitignore                                # قواعد النشر/الاستبعاد (أدناه)
 ├── PROJECT_WORKSHOP7_COMPLIANCE_REVIEW.md    # سجل مراجعة امتثال (قراءة فقط)
 ├── system/                                   # النظام كاملًا (Django project)
@@ -72,8 +98,9 @@ PostgreSQL (حصري · D-01)  ← production: WhiteNoise · DEBUG=False · fail
 │   │            governance · reference)
 │   ├── datasets/training.py · templates/ · static/ · manage.py
 │   ├── requirements.txt · .env.example       # المتطلبات + قالب البيئة
-│   └── README.md                             # سجل المراحل التفصيلي (PHASE 2–16)
+│   └── README.md                             # سجل المراحل التفصيلي
 ├── output/                                   # مخرجات وأدلة المراحل
+│   ├── phase19_proof_of_work/                # حزمة إثبات الكفاءة (Proof-of-Work Docs)
 │   ├── phase10_evidence/ phase11_evidence/ phase12_evidence/   # HTML/CSV/XLSX حيّة
 │   ├── phase14_ux_review/UX_REVIEW.md        # تقرير مراجعة UX
 │   ├── phase15_rc/RELEASE_CHECKLIST.md       # قائمة تحقق RC

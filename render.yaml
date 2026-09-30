@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: audit-budget-analytics
+    runtime: python
+    buildCommand: "pip install -r system/requirements.txt && cd system && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py load_training_dataset"
+    startCommand: "cd system && gunicorn config.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.2
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: "*.onrender.com"
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "true"
+      - key: DATABASE_URL
+        sync: false

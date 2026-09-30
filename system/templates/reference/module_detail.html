@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load perms %}
+{% block title %}{{ obj }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small mb-1">
+      <li class="breadcrumb-item"><a href="{{ list_url }}">{{ title }}</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ obj }}</li>
+    </ol></nav>
+    <h1 class="h4 mb-0">{{ title_one }}: {{ obj }}</h1>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ list_url }}">← رجوع للقائمة</a>
+    {% if can_edit %}
+    <a class="btn btn-primary" href="{{ edit_url }}">تعديل</a>
+    <form method="post" action="{{ delete_url }}" class="d-inline"
+          onsubmit="return confirm('حذف هذا السجل نهائيًا؟ (يُسجَّل في سجل التدقيق)');">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger" type="submit">حذف</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">بيانات {{ title_one }}</div>
+      <div class="card-body">
+        <table class="table mb-0">
+          <tbody>
+            {% for row in field_rows %}
+            <tr><th class="w-40">{{ row.label }}</th><td>{{ row.value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="small text-muted mt-2">
+          أُنشئ بواسطة {{ obj.created_by|default:"—" }} · {{ obj.created_at|date:"Y-m-d H:i" }}
+          {% if obj.updated_by %} · عُدّل بواسطة {{ obj.updated_by }} · {{ obj.updated_at|date:"Y-m-d H:i" }}{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    {% if name == "period" and can_edit %}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold">حالة الفترة (مفتوحة / مغلقة)</div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">
+          الإغلاق/الفتح يُسجَّل دائمًا في سجل التدقيق. بعد الإغلاق، التسجيل معاملات
+          على الفترة يتطلب صلاحية «التسجيل في فترة مغلقة».
+        </p>
+        <div class="d-flex gap-2">
+          {% if obj.status == "closed" %}
+          <form method="post" action="{{ set_status_url }}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="open">
+            <button class="btn btn-success" type="submit">فتح الفترة</button>
+          </form>
+          {% else %}
+          <form method="post" action="{{ set_status_url }}">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="closed">
+            <button class="btn btn-warning" type="submit">إغلاق الفترة</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if can_trail %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">سجل التدقيق لهذا السجل</div>
+      <div class="card-body">
+        {% for log in audit_rows %}
+        <div class="border-bottom pb-2 mb-2 small">
+          <span class="badge text-bg-secondary">{{ log.get_action_display }}</span>
+          <span class="text-muted">{{ log.created_at|date:"Y-m-d H:i" }} · {{ log.actor_label|default:"system" }}</span>
+          {% if log.diff %}<div class="font-monospace text-muted" dir="ltr">{{ log.diff }}</div>{% endif %}
+        </div>
+        {% empty %}
+        <div class="text-muted small">لا توجد أحداث بعد لهذا السجل.</div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,8 @@
+from django.apps import AppConfig
+
+
+class ReferenceConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.reference'
+    verbose_name = 'البيانات المرجعية'
+    verbose_name_en = 'Reference Data'

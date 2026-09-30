@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}سجل الاستثناءات{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">سجل الاستثناءات الرقابية</h1>
+    <div class="text-muted small">
+      إجمالي {{ counts.total }} · مفتوح {{ counts.open }} · قيد الدراسة {{ counts.acknowledged }} ·
+      مُعالج {{ counts.resolved }} · خطر مرتفع {{ counts.high }}
+    </div>
+  </div>
+  <a class="btn btn-outline-primary" href="{% url 'audit:tests_list' %}">محرّك الاختبارات</a>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_status">الحالة</label>
+        <select id="f_status" name="status" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          <option value="open" {% if sel.status == "open" %}selected{% endif %}>مفتوح</option>
+          <option value="acknowledged" {% if sel.status == "acknowledged" %}selected{% endif %}>قيد الدراسة</option>
+          <option value="resolved" {% if sel.status == "resolved" %}selected{% endif %}>مُعالج</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_risk">الخطر</label>
+        <select id="f_risk" name="risk" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          <option value="High" {% if sel.risk == "High" %}selected{% endif %}>High</option>
+          <option value="Medium" {% if sel.risk == "Medium" %}selected{% endif %}>Medium</option>
+          <option value="Low" {% if sel.risk == "Low" %}selected{% endif %}>Low</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_test">Test ID</label>
+        <select id="f_test" name="test_code" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for code in test_codes %}
+          <option value="{{ code }}" {% if sel.test_code == code %}selected{% endif %}>{{ code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_run">رقم التشغيل</label>
+        <input id="f_run" name="run" value="{{ sel.run }}" class="form-control form-control-sm" dir="ltr" placeholder="AR-2026-00001">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_q">بحث</label>
+        <input id="f_q" name="q" value="{{ sel.q }}" class="form-control form-control-sm" placeholder="تفسير / مصدر…">
+      </div>
+      <div class="col-md-1">
+        <button class="btn btn-outline-primary btn-sm w-100">تطبيق</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Test</th><th>النوع</th><th>لماذا سُجِّل</th><th>المصدر</th>
+          <th>المبلغ</th><th>شدّة</th><th>خطر</th><th>الحالة</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in exceptions %}
+        <tr>
+          <td class="font-monospace" dir="ltr">
+            <a href="{% url 'audit:exception_detail' e.pk %}">#{{ e.pk }}</a> {{ e.test_code }}
+            <div class="small text-muted"><a href="{% url 'audit:run_detail' e.run_id %}" dir="ltr">{{ e.run.run_number }}</a></div>
+          </td>
+          <td class="small">{{ e.exception_type }}</td>
+          <td class="small" style="max-width:400px">{{ e.explanation }}</td>
+          <td class="small">
+            {% if e.source_type == "expense" %}
+              <a href="{% url 'expenses:detail' e.source_id %}" dir="ltr">مصروف #{{ e.source_id }}</a>
+            {% elif e.source_type == "procurement" %}
+              <a href="{% url 'procurement:detail' e.source_id %}" dir="ltr">مشتريات #{{ e.source_id }}</a>
+            {% else %}
+              <span dir="ltr">{{ e.source_type }}#{{ e.source_id }}</span>
+            {% endif %}
+            {% if e.source_ref.expense_number %}
+            <div class="text-muted font-monospace" dir="ltr">{{ e.source_ref.expense_number }}</div>
+            {% elif e.source_ref.reference_number %}
+            <div class="text-muted font-monospace" dir="ltr">{{ e.source_ref.reference_number }}</div>
+            {% endif %}
+          </td>
+          <td dir="ltr" class="font-monospace small">{{ e.amount|default_if_none:"—" }} {{ e.currency }}</td>
+          <td><span class="badge {% if e.control_severity == 'S3' %}text-bg-danger{% elif e.control_severity == 'S2' %}text-bg-warning{% else %}text-bg-secondary{% endif %}" title="RR مرجعي">{{ e.control_severity }}</span></td>
+          <td>
+            {% if e.risk_level == "High" %}<span class="badge text-bg-danger">High</span>
+            {% elif e.risk_level == "Medium" %}<span class="badge text-bg-warning">Medium</span>
+            {% else %}<span class="badge text-bg-secondary">Low</span>{% endif %}
+            <div class="small text-muted" dir="ltr" title="Risk Rule">{{ e.risk_rule_ref }}</div>
+          </td>
+          <td class="small">
+            {{ e.get_status_display }}
+            {% if e.handled_by %}<div class="text-muted">بواسطة {{ e.handled_by.username }}</div>{% endif %}
+          </td>
+          <td>
+            {% if can_manage %}
+            <form method="post" action="{% url 'audit:exception_update' e.pk %}" class="d-flex gap-1">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="{% if e.status == 'open' %}acknowledged{% elif e.status == 'acknowledged' %}resolved{% else %}open{% endif %}">
+              <button class="btn btn-sm btn-outline-secondary">
+                {% if e.status == "open" %}→ دراسة{% elif e.status == "acknowledged" %}→ معالج{% else %}→ فتح{% endif %}
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-center text-muted py-4">لا استثناءات مطابقة.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}التقارير{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h1 class="h4 mb-0">نظام التقارير (Reports)</h1>
+  <div class="text-muted small">
+    تسعة تقارير — كل رقم من استعلامات PostgreSQL حية · فلاتر داخل كل تقرير ·
+    Print / حفظ PDF عبر متصفح الطباعة (Print CSS) · تصدير CSV/XLSX
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for r in reports %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="text-muted small" dir="ltr">{{ r.title }}</div>
+            <h2 class="h6 mb-1">{{ r.title_ar }}</h2>
+          </div>
+          <span class="badge text-bg-light border" dir="ltr">#{{ forloop.counter }}</span>
+        </div>
+        <p class="small text-muted mb-2">{{ r.description }}</p>
+        <div class="small mb-2">
+          فلاتر:
+          {% for f in r.filters %}<span class="badge text-bg-secondary">{{ f }}</span> {% endfor %}
+        </div>
+        <a class="btn btn-sm btn-primary" href="{% url 'reports:detail' r.slug %}">فتح التقرير ←</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

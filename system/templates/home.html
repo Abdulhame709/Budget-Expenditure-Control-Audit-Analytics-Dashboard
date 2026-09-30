@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}الرئيسية — {{ SYSTEM_NAME_AR }}{% endblock %}
+{% block content %}
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <h1 class="h3 mb-1">{{ SYSTEM_NAME_AR }}</h1>
+    <p class="text-muted mb-0">{{ SYSTEM_NAME_EN }} — {{ SYSTEM_CONTEXT }}</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body">
+        <div class="text-muted small mb-1">حالة قاعدة البيانات</div>
+        {% if db_ok %}
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge text-bg-success">متصل</span>
+            <strong class="font-monospace">{{ db_vendor }}</strong>
+          </div>
+          <div class="small text-muted mt-1 font-monospace" dir="ltr">{{ db_name }}</div>
+        {% else %}
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge text-bg-danger">غير متصل</span>
+            <strong class="font-monospace">{{ db_vendor }}</strong>
+          </div>
+          <div class="small text-danger mt-1 font-monospace" dir="ltr">{{ db_name }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body">
+        <div class="text-muted small mb-1">إطار العمل</div>
+        <strong>Django {{ django_version }}</strong>
+        <div class="small text-muted mt-1 font-monospace" dir="ltr">{{ settings_module }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body">
+        <div class="text-muted small mb-1">التطبيقات المُسجّلة</div>
+        <strong>{{ apps_count }} app</strong>
+        <div class="small text-muted mt-1">10 وحدات معمارية + تطبيقات Django</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card h-100 shadow-sm border-0">
+      <div class="card-body">
+        <div class="text-muted small mb-1">بيئة التشغيل</div>
+        <strong>{% if is_debug %}Development (DEBUG){% else %}Production{% endif %}</strong>
+        <div class="small text-muted mt-1">الإعدادات تُقرأ من متغيرات البيئة</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-4 border-0 shadow-sm">
+  <div class="card-body">
+    <h2 class="h6 text-muted">حالة البناء</h2>
+    <p class="mb-0 small">
+      هيكل المشروع (PHASE 2) جاهز: قاعدة بيانات PostgreSQL · مصادقة Django · هيكل 10 تطبيقات ·
+      قوالب RTL · تسجيل أخطاء · صفحات أخطاء · إعدادات بيئة متعددة.
+      الوحدات التشغيلية تُبنى في المراحل التالية بموافقة صريحة.
+    </p>
+  </div>
+</div>
+{% endblock %}

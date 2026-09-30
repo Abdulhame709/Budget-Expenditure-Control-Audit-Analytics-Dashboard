@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>النتائج والتوصيات</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link href="/static/css/app.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+  <div class="bg-warning text-dark text-center small py-1 border-bottom">
+    ⚠ بيانات تدريبية Synthetic Training Data — ليست بيانات شركة حقيقية
+  </div>
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="/">
+        <span class="d-inline-block rounded-circle bg-white text-primary text-center"
+              style="width:26px;height:26px;line-height:26px;font-size:14px">رق</span>
+        نظام التحليل الرقابي والموازنة والمصروفات والمشتريات
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="القائمة">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="/">الرئيسية</a></li>
+          
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle " href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">وحدات النظام</a>
+            <ul class="dropdown-menu dropdown-menu-start">
+              
+              <li><a class="dropdown-item" href="/reference/fiscal-years/">السنوات المالية</a></li>
+              <li><a class="dropdown-item" href="/reference/periods/">الفترات الشهرية</a></li>
+              <li><a class="dropdown-item" href="/reference/departments/">الإدارات</a></li>
+              <li><a class="dropdown-item" href="/reference/accounts/">دليل الحسابات</a></li>
+              <li><a class="dropdown-item" href="/reference/expense-categories/">تصنيفات المصروفات</a></li>
+              <li><a class="dropdown-item" href="/reference/suppliers/">الموردون</a></li>
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/budget/">الموازنة</a></li>
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/expenses/">المصروفات الفعلية</a></li>
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/procurement/">المشتريات</a></li>
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              
+              <li><span class="dropdown-item-text text-muted small fst-italic">الموازنة والمصروفات والاختبارات — مراحل لاحقة</span></li>
+            </ul>
+          </li>
+          
+          
+          
+          
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+               aria-expanded="false">إدارة النظام</a>
+            <ul class="dropdown-menu">
+              
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/audit/">دورة المعالجة الرقابية</a></li>
+              <li><a class="dropdown-item" href="/audit/tests/">الاختبارات الرقابية (المحرّك)</a></li>
+              <li><a class="dropdown-item" href="/audit/runs/">تشغيلات الاختبارات</a></li>
+              
+              
+              
+              <li><a class="dropdown-item" href="/audit/exceptions/">سجل الاستثناءات</a></li>
+              
+              
+              
+              <li><a class="dropdown-item" href="/audit/findings/">النتائج والتوصيات (Findings)</a></li>
+              
+              <li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="/audit-trail/">سجل التدقيق</a></li>
+            </ul>
+          </li>
+          
+        </ul>
+
+        <ul class="navbar-nav mb-2 mb-lg-0">
+          
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+                 aria-expanded="false">👤 auditor</a>
+              <ul class="dropdown-menu dropdown-menu-start">
+                <li><a class="dropdown-item" href="/accounts/profile/">الملف الشخصي</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form method="post" action="/accounts/logout/" class="m-0">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="A86GO8nJ8D00GEzZ3JYNhHJiHiWarGyPHSJm1t6YIeuLTsLJGSYYz7W3c0IGPmsw">
+                    <button class="dropdown-item" type="submit">تسجيل الخروج</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+          
+        </ul>
+        <span class="navbar-text small text-white-50">PHASE 4 — البيانات المرجعية</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid py-4 flex-grow-1">
+    
+    
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">النتائج والتوصيات (Findings)</h1>
+    <div class="text-muted small">1 نتيجة · Finding → Criteria → Condition → Impact → Cause* → Risk → Recommendation → Management Action → Status</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="/audit/findings/new/">+ نتيجة جديدة</a>
+    <a class="btn btn-outline-secondary" href="/audit/">دورة المعالجة</a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_status">الحالة</label>
+        <select id="f_status" name="status" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          <option value="open" >مفتوح</option>
+          <option value="in_progress" >قيد المعالجة</option>
+          <option value="closed" >مُغلق</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_risk">Risk</label>
+        <select id="f_risk" name="risk" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          <option value="High" >High</option>
+          <option value="Medium" >Medium</option>
+          <option value="Low" >Low</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-1" for="f_q">بحث</label>
+        <input id="f_q" name="q" value="" class="form-control form-control-sm" placeholder="رقم / عنوان / توصية">
+      </div>
+      <div class="col-md-1"><button class="btn btn-outline-primary btn-sm w-100">تطبيق</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr><th>الرقم</th><th>Finding</th><th>Risk</th><th>التوصية</th>
+            <th>إجراء الإدارة</th><th>Status</th><th>مرتبطة بـ</th><th></th></tr>
+      </thead>
+      <tbody>
+        
+        <tr>
+          <td class="font-monospace" dir="ltr">F-2026-00001</td>
+          <td style="max-width:260px">اختبار حي — إعادة تشغيل 16</td>
+          <td>
+            <span class="badge text-bg-danger">High</span>
+            
+          </td>
+          <td style="max-width:300px" class="text-muted">معالجة تجريبية</td>
+          <td style="max-width:200px">إجراء إدارة تجريبي</td>
+          <td>
+            <span class="badge text-bg-info">قيد المعالجة</span>
+            
+          </td>
+          <td>1 استثناء</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="/audit/findings/1/">فتح</a></td>
+        </tr>
+        
+      </tbody>
+    </table>
+  </div>
+</div>
+
+  </main>
+
+  <footer class="bg-dark text-white-50 small py-3 mt-auto border-top">
+    <div class="container-fluid d-flex flex-wrap justify-content-between gap-2">
+      <span>Audit Analytics &amp; Budget Control System — Independent Training &amp; Demonstration System</span>
+      <span>Owner: Abdulhameed — Internal Audit &amp; Financial Review Professional</span>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+</body>
+</html>

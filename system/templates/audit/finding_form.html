@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{% if creating %}نتيجة جديدة{% else %}تعديل {{ finding.finding_code }}{% endif %}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <h1 class="h4 mb-3">
+      {% if creating %}إنشاء نتيجة رقابية (Finding){% else %}تعديل {{ finding.finding_code }}{% endif %}
+    </h1>
+
+    {% if exceptions %}
+    <div class="alert alert-info small">
+      المرتبطة باستثناء:
+      {% for e in exceptions %}
+      <a href="{% url 'audit:exception_detail' e.pk %}" dir="ltr">[{{ e.test_code }}] #{{ e.pk }}</a>
+      ({{ e.risk_level }}){% if not forloop.last %} · {% endif %}
+      {% endfor %}
+      — الحقول Criteria/Condition/Risk مُعبّأة مسبقًا من الاستثناء ويمكن تعديلها.
+    </div>
+    {% endif %}
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label" for="{{ form.title.id_for_label }}">Finding — النتيجة</label>
+              {{ form.title }}{{ form.title.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.criteria.id_for_label }}">Criteria — المعيار</label>
+              {{ form.criteria }}{{ form.criteria.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.condition.id_for_label }}">Condition — الوضع الفعلي</label>
+              {{ form.condition }}{{ form.condition.errors }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.impact.id_for_label }}">Impact — الأثر</label>
+              {{ form.impact }}{{ form.impact.errors }}
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" for="{{ form.cause.id_for_label }}">Cause — السبب
+                <span class="text-muted small">(فقط إن كان مدعومًا بدليل)</span></label>
+              {{ form.cause }}{{ form.cause.errors }}
+            </div>
+            <div class="col-md-4 d-flex align-items-center">
+              <div class="form-check mt-4">
+                {{ form.cause_supported }}
+                <label class="form-check-label" for="{{ form.cause_supported.id_for_label }}">
+                  {{ form.cause_supported.label }}</label>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="{{ form.risk_level.id_for_label }}">{{ form.risk_level.label }}</label>
+              {{ form.risk_level }}{{ form.risk_level.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="{{ form.status.id_for_label }}">{{ form.status.label }}</label>
+              {{ form.status }}{{ form.status.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.status_note.id_for_label }}">{{ form.status_note.label }}</label>
+              {{ form.status_note }}{{ form.status_note.errors }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.recommendation.id_for_label }}">Recommendation — التوصية</label>
+              {{ form.recommendation }}{{ form.recommendation.errors }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.management_action.id_for_label }}">{{ form.management_action.label }}</label>
+              {{ form.management_action }}{{ form.management_action.errors }}
+              <div class="form-text">يُملأ من رد الإدارة لاحقًا — يمكن حفظه فارغًا عند الإنشاء.</div>
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary" type="submit">حفظ</button>
+            <a class="btn btn-outline-secondary" href="{% url 'audit:findings_list' %}">رجوع</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

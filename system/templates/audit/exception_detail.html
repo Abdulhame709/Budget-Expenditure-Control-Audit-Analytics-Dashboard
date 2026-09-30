@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% load attachments %}
+{% block title %}استثناء {{ exc.pk }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="small mb-2">
+  <a href="{% url 'audit:cycle_hub' %}">دورة المعالجة</a> ←
+  <a href="{% url 'audit:exceptions_list' %}">الاستثناءات</a> ←
+  <span dir="ltr">#{{ exc.pk }}</span>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">
+      {% if exc.risk_level == "High" %}<span class="badge text-bg-danger">High</span>
+      {% elif exc.risk_level == "Medium" %}<span class="badge text-bg-warning">Medium</span>
+      {% else %}<span class="badge text-bg-secondary">Low</span>{% endif %}
+      {{ exc.title }}
+      <span class="fs-6 text-muted" dir="ltr">[{{ exc.test_code }}]</span>
+    </h1>
+    <div class="text-muted small">
+      نوع الاستثناء: {{ exc.exception_type }} · شدّة الخلل {{ exc.control_severity }}
+      (مرجع {{ exc.risk_rule_ref|default:"—" }}) ·
+      كُشف في <a href="{% url 'audit:run_detail' exc.run_id %}" dir="ltr">{{ exc.run.run_number }}</a>
+      · الحالة: <strong>{{ exc.get_status_display }}</strong>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_findings %}
+    <a class="btn btn-primary" href="{% url 'audit:finding_create' %}?exception={{ exc.pk }}">→ إنشاء Finding من هذا الاستثناء</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'audit:exceptions_list' %}">رجوع</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    {# ------------------------------------------------------------ description #}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white"><strong>لماذا سُجِّل (Explanation)</strong></div>
+      <div class="card-body">
+        <p class="mb-2">{{ exc.explanation }}</p>
+        <dl class="row small mb-0">
+          <dt class="col-4">المبلغ</dt><dd class="col-8" dir="ltr">{{ exc.amount|default_if_none:"—" }} {{ exc.currency }}</dd>
+          <dt class="col-4">شدة الخلل</dt><dd class="col-8">{{ exc.get_control_severity_display }}</dd>
+          <dt class="col-4">مستوى الخطر</dt>
+          <dd class="col-8">{{ exc.get_risk_level_display }}
+            <span class="text-muted">— منطق بسيط قابل للتفسير (مصفوفة أثر×شدة، لا AI/ML):
+              الأثر a3={{ bands.a3|default:10000 }} / a2={{ bands.a2|default:2000 }} من
+              <span dir="ltr">{{ exc.test.test_code }}</span> parameters.</span></dd>
+          <dt class="col-4">Auditor Action</dt>
+          <dd class="col-8">{{ exc.auditor_action|default:exc.test.auditor_action }}</dd>
+          <dt class="col-4">تاريخ الاكتشاف</dt><dd class="col-8" dir="ltr">{{ exc.detected_at|date:"Y-m-d H:i" }}</dd>
+          <dt class="col-4">عالجه</dt><dd class="col-8">{{ exc.handled_by.username|default:"—"}} {{ exc.handled_at|date:"Y-m-d"|default:"" }}</dd>
+        </dl>
+      </div>
+    </div>
+
+    {# ------------------------------------------------------------ evidence #}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white"><strong>Evidence — الدليل</strong></div>
+      <div class="card-body small">
+        {% if exc.evidence %}
+        <p class="mb-2">الدليل المرفق: <span dir="ltr">{{ exc.evidence.name }}</span>
+          — <a href="{% url 'audit:evidence_view' exc.pk %}">تنزيل/عرض (مُسجَّل في التدقيق)</a></p>
+        {% else %}
+        <p class="text-muted mb-2">لا يوجد دليل مرفق بعد.</p>
+        {% endif %}
+        {# trace: source attachment as supporting evidence #}
+        {% if exc.source_type == "expense" and source_obj and source_obj.attachment %}
+        <p class="mb-2">مرفق معاملة المصدر:
+          <a href="{% url 'expenses:attachment' source_obj.pk %}">مستند المصروف</a></p>
+        {% endif %}
+        {% if exc.source_type == "procurement" and source_obj and source_obj.attachment %}
+        <p class="mb-2">مرفق معاملة المصدر:
+          <a href="{% url 'procurement:attachment' source_obj.pk %}">مستند المشتريات</a></p>
+        {% endif %}
+        {% if can_manage %}
+        <form method="post" action="{% url 'audit:evidence_upload' exc.pk %}"
+              enctype="multipart/form-data" class="d-flex gap-2 align-items-end mt-2">
+          {% csrf_token %}
+          <div class="flex-grow-1">
+            <label class="form-label small mb-1">{{ evidence_form.evidence.label }}</label>
+            {{ evidence_form.evidence }}
+          </div>
+          <button class="btn btn-outline-primary btn-sm">رفع الدليل</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ------------------------------------------------------------ status #}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white"><strong>الحالة (Status)</strong></div>
+      <div class="card-body d-flex gap-2 align-items-center small">
+        {% if can_manage %}
+        <form method="post" action="{% url 'audit:exception_update' exc.pk %}" class="d-flex gap-2 align-items-center">
+          {% csrf_token %}
+          <select name="status" class="form-select form-select-sm" style="width:auto">
+            <option value="open" {% if exc.status == "open" %}selected{% endif %}>مفتوح</option>
+            <option value="acknowledged" {% if exc.status == "acknowledged" %}selected{% endif %}>قيد الدراسة</option>
+            <option value="resolved" {% if exc.status == "resolved" %}selected{% endif %}>مُعالج</option>
+          </select>
+          <input name="status_note" value="{{ exc.status_note }}" class="form-control form-control-sm" placeholder="ملاحظة" style="width:200px">
+          <button class="btn btn-sm btn-outline-secondary">حفظ الحالة</button>
+        </form>
+        {% else %}
+        <span>{{ exc.get_status_display }} {{ exc.status_note }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    {# ------------------------------------------------------------ chain: source + test #}
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white"><strong>سلسلة التتبّع (Chain)</strong></div>
+      <div class="card-body small">
+        <dl class="mb-0">
+          <dt>① Source Transaction — المعاملة المصدر</dt>
+          <dd>
+            {% if source_url %}
+            <a href="{{ source_url }}" dir="ltr">{{ source_desc }}</a>
+            <span class="text-muted">({{ exc.source_type }}#{{ exc.source_id }})</span>
+            {% else %}
+            <span dir="ltr">{{ exc.source_type }}#{{ exc.source_id }}</span>
+            <span class="text-muted">(تركيبة موازنة — لا صفحة منفصلة)</span>
+            {% endif %}
+          </dd>
+          <dt class="mt-2">② Test — الاختبار الذي رصدته</dt>
+          <dd>
+            <a href="{% url 'audit:tests_list' %}#{{ exc.test_code }}" dir="ltr">{{ exc.test_code }}</a>
+            — {{ test.name }}
+            <div class="text-muted mt-1">القاعدة: {{ test.rule_text|truncatechars:200 }}</div>
+            <div class="text-muted">البيانات: <span dir="ltr">{{ test.data_source }}</span></div>
+          </dd>
+          <dt class="mt-2">③ Finding — النتيجة المرتبطة</dt>
+          <dd>
+            {% for f in findings %}
+            <a href="{% url 'audit:finding_detail' f.pk %}" dir="ltr">{{ f.finding_code }}</a>
+            ({{ f.get_status_display }})<br>
+            {% empty %}
+            <span class="text-muted">لا يوجد بعد — أنشئه من الزر أعلى الصفحة.</span>
+            {% endfor %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+
+    {# ------------------------------------------------------------ run result #}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white"><strong>نتيجة الاختبار المرتبطة</strong></div>
+      <div class="card-body small">
+        <div>الحالة: <span class="badge {% if exc.result.status == 'flagged' %}text-bg-warning{% elif exc.result.status == 'pass' %}text-bg-success{% else %}text-bg-danger{% endif %}">{{ exc.result.status }}</span></div>
+        <div class="mt-1">{{ exc.result.explanation }}</div>
+        <details class="mt-2">
+          <summary class="text-muted">لقطة معاملات الاختبار وقت التشغيل</summary>
+          <pre class="bg-light p-2 mt-1 small" dir="ltr" style="white-space:pre-wrap">{{ exc.result.params_snapshot }}</pre>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% attachment_section "audit_exception" exc.pk %}
+
+{% endblock %}

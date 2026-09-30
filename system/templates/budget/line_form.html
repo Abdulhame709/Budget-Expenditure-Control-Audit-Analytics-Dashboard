@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{% if is_create %}سطر ميزانية جديد{% else %}تعديل سطر{% endif %}{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">
+  {% if is_create %}إضافة سطر إلى {% endif %}
+  <span dir="ltr">v{{ version.version }}</span> — {{ version.budget.name }}
+</h1>
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="row">
+        {% for field in form %}
+          {% if field.name|slice:":2" == "m0" or field.name|slice:":2" == "m1" %}
+            <div class="col-6 col-md-2 mb-2">
+              <label class="form-label small mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            </div>
+          {% else %}
+            <div class="col-md-4 mb-2">
+              <label class="form-label small mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+              {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <div class="alert alert-light border small">
+        الميزانية السنوية تُحسب تلقائيًا = مجموع الأشهر الـ 12 (تُخزَّن في قاعدة
+        البيانات وتُفحص بقيد CHECK) — لا تُكتب يدويًا.
+      </div>
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-primary" type="submit">{% if is_create %}إضافة السطر{% else %}حفظ التعديلات{% endif %}</button>
+        <a class="btn btn-outline-secondary" href="{{ cancel_url }}">إلغاء</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

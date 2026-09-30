@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>لوحة المؤشرات التحليلية</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link href="/static/css/app.css" rel="stylesheet">
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+  <div class="bg-warning text-dark text-center small py-1 border-bottom">
+    ⚠ بيانات تدريبية Synthetic Training Data — ليست بيانات شركة حقيقية
+  </div>
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="/">
+        <span class="d-inline-block rounded-circle bg-white text-primary text-center"
+              style="width:26px;height:26px;line-height:26px;font-size:14px">رق</span>
+        نظام التحليل الرقابي والموازنة والمصروفات والمشتريات
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="القائمة">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="/">الرئيسية</a></li>
+          <li class="nav-item"><a class="nav-link" href="/dashboard/">لوحة المؤشرات</a></li>
+          
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle " href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">وحدات النظام</a>
+            <ul class="dropdown-menu dropdown-menu-start">
+              
+              <li><a class="dropdown-item" href="/reference/fiscal-years/">السنوات المالية</a></li>
+              <li><a class="dropdown-item" href="/reference/periods/">الفترات الشهرية</a></li>
+              <li><a class="dropdown-item" href="/reference/departments/">الإدارات</a></li>
+              <li><a class="dropdown-item" href="/reference/accounts/">دليل الحسابات</a></li>
+              <li><a class="dropdown-item" href="/reference/expense-categories/">تصنيفات المصروفات</a></li>
+              <li><a class="dropdown-item" href="/reference/suppliers/">الموردون</a></li>
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/budget/">الموازنة</a></li>
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/expenses/">المصروفات الفعلية</a></li>
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/procurement/">المشتريات</a></li>
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              
+              <li><span class="dropdown-item-text text-muted small fst-italic">الموازنة والمصروفات والاختبارات — مراحل لاحقة</span></li>
+            </ul>
+          </li>
+          
+          
+          
+          
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+               aria-expanded="false">إدارة النظام</a>
+            <ul class="dropdown-menu">
+              
+              
+              
+              
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="/audit/">دورة المعالجة الرقابية</a></li>
+              <li><a class="dropdown-item" href="/audit/tests/">الاختبارات الرقابية (المحرّك)</a></li>
+              <li><a class="dropdown-item" href="/audit/runs/">تشغيلات الاختبارات</a></li>
+              
+              
+              
+              <li><a class="dropdown-item" href="/audit/exceptions/">سجل الاستثناءات</a></li>
+              
+              
+              
+              <li><a class="dropdown-item" href="/audit/findings/">النتائج والتوصيات (Findings)</a></li>
+              
+              <li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="/audit-trail/">سجل التدقيق</a></li>
+            </ul>
+          </li>
+          
+        </ul>
+
+        <ul class="navbar-nav mb-2 mb-lg-0">
+          
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+                 aria-expanded="false">👤 auditor</a>
+              <ul class="dropdown-menu dropdown-menu-start">
+                <li><a class="dropdown-item" href="/accounts/profile/">الملف الشخصي</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form method="post" action="/accounts/logout/" class="m-0">
+                    <input type="hidden" name="csrfmiddlewaretoken" value="1gtUpsdV8wF83IEkMTvY8OdYYr3A7xhGyu8lk1iglFPnRs38pQgjFnvwHLHkLKuU">
+                    <button class="dropdown-item" type="submit">تسجيل الخروج</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+          
+        </ul>
+        <span class="navbar-text small text-white-50">PHASE 4 — البيانات المرجعية</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid py-4 flex-grow-1">
+    
+    
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">لوحة المؤشرات التحليلية (Dashboard)</h1>
+    <div class="text-muted small">
+      استعلامات حية من PostgreSQL وقت الطلب — لا أرقام ثابتة ·
+      عملة الأساس USD · منطق تفسيري بسيط <strong>لا AI/ML</strong> · Synthetic Training Data
+    </div>
+  </div>
+  <div class="small text-muted" dir="ltr">تحديث: 2026-09-29 21:46</div>
+</div>
+
+<!-- ====================================================== الفلاتر -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_period">الفترة (Period)</label>
+        <select id="f_period" name="period" class="form-select form-select-sm">
+          <option value="">كل السنة</option>
+          
+          <option value="1" >يناير FY2026</option>
+          
+          <option value="2" >فبراير FY2026</option>
+          
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_department">الإدارة (Department)</label>
+        <select id="f_department" name="department" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          
+          <option value="3" >الإدارة</option>
+          
+          <option value="1" >العمليات</option>
+          
+          <option value="2" >المالية</option>
+          
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_account">الحساب (Account)</label>
+        <select id="f_account" name="account" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          
+          <option value="1" >5102 — مستلزمات</option>
+          
+          <option value="2" >5210 — سفر</option>
+          
+          <option value="3" >5310 — خدمات</option>
+          
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_category">التصنيف (Category)</label>
+        <select id="f_category" name="category" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          
+          <option value="2" >سفر</option>
+          
+          <option value="1" >مستلزمات</option>
+          
+        </select>
+      </div>
+      <div class="col-md-1 col-6">
+        <label class="form-label small mb-1" for="f_risk">الخطر (Risk)</label>
+        <select id="f_risk" name="risk" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          
+          <option value="High" >High</option>
+          
+          <option value="Medium" >Medium</option>
+          
+          <option value="Low" >Low</option>
+          
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_test">الاختبار (Test)</label>
+        <select id="f_test" name="test" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          
+          <option value="T-BUD-01" >T-BUD-01</option>
+          
+          <option value="T-BUD-02" >T-BUD-02</option>
+          
+          <option value="T-BUD-03" >T-BUD-03</option>
+          
+          <option value="T-EXP-01" >T-EXP-01</option>
+          
+          <option value="T-EXP-02" >T-EXP-02</option>
+          
+          <option value="T-EXP-03" >T-EXP-03</option>
+          
+          <option value="T-EXP-04" >T-EXP-04</option>
+          
+          <option value="T-EXP-05" >T-EXP-05</option>
+          
+          <option value="T-EXP-06" >T-EXP-06</option>
+          
+          <option value="T-PROC-01" >T-PROC-01</option>
+          
+          <option value="T-PROC-02" >T-PROC-02</option>
+          
+          <option value="T-PROC-03" >T-PROC-03</option>
+          
+          <option value="T-PROC-04" >T-PROC-04</option>
+          
+          <option value="T-PROC-05" >T-PROC-05</option>
+          
+        </select>
+      </div>
+      <div class="col-md-1 col-6 d-flex gap-1">
+        <button class="btn btn-primary btn-sm flex-grow-1">تطبيق</button>
+        <a class="btn btn-outline-secondary btn-sm" href="/dashboard/" title="إعادة تعيين">↺</a>
+      </div>
+    </form>
+    <div class="text-muted small mt-1">
+      نافذة التحليل:
+      <span dir="ltr">1 يناير، 2026 → 31 ديسمبر، 2026</span>
+      
+      · فلاتر الإدارة/الحساب/التصنيف تؤثر على المقاييس المالية والاتجاه ·
+      فلترا الخطر والاختبار يؤثران على الاستثناءات ونتائج الاختبارات ·
+      فلتر الفترة نافذة مالية (تاريخ المعاملات) لا تاريخ رصد الاستثناءات
+    </div>
+  </div>
+</div>
+
+<!-- ====================================== KPIs (الأسئلة 1–5, 8–9) -->
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">1. ما Budget؟ — Effective Budget</div>
+      <div class="fs-5 fw-bold" dir="ltr">199,999.92</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">2. ما Actual Spend؟ — Actual Expenses</div>
+      <div class="fs-5 fw-bold text-danger" dir="ltr">8,284.56</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">3. ما Variance؟ — Budget − Actual</div>
+      <div class="fs-5 fw-bold text-success" dir="ltr">191,715.36</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">4. ما نسبة الاستخدام؟ — Utilization %</div>
+      <div class="fs-5 fw-bold" dir="ltr">4.1%</div>
+      <div class="progress mt-1" style="height:6px">
+        <div class="progress-bar bg-success"
+             style="width: 4%"></div>
+      </div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">5. المصروفات خارج الموازنة — Out-of-Budget</div>
+      <div class="fs-5 fw-bold text-warning" dir="ltr">0.00</div>
+      <div class="small text-muted">0 مصروف بلا تركيبة موازنة معتمدة</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">8. ما الاستثناءات؟ — Exception Count</div>
+      <div class="fs-5 fw-bold" dir="ltr">11</div>
+      <div class="small text-muted">
+        مفتوح: 10 · مُعتمد: 1 · مُعالج: 0
+      </div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100 border-start border-danger border-3">
+    <div class="card-body py-2">
+      <div class="small text-muted">9. High Risk Count</div>
+      <div class="fs-5 fw-bold text-danger" dir="ltr">6</div>
+      <div class="small text-muted">
+        High 6 · Medium 5 · Low 0
+      </div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">Procurement Exceptions</div>
+      <div class="fs-5 fw-bold" dir="ltr">8</div>
+      <div class="small text-muted">استثناءات مصدرها المشتريات</div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+  <!-- ==================================== س6: الإدارات -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>6. ما الإدارات ذات الانحرافات؟</strong>
+        <span class="text-muted small">— الموازنة مقابل التنفيذ لكل إدارة (فلتر الإدارة يُحدثها)</span></div>
+      <div class="card-body">
+        <canvas id="chart-departments" height="220"></canvas>
+        <div class="table-responsive mt-2">
+          <table class="table table-sm small align-middle mb-0">
+            <thead class="table-light"><tr>
+              <th>الإدارة</th><th>الموازنة</th><th>التنفيذ</th>
+              <th>Variance</th><th>Util%</th></tr></thead>
+            <tbody>
+              
+              <tr class="table-warning">
+                <td>العمليات</td>
+                <td dir="ltr">99999,96</td>
+                <td dir="ltr">2084,56</td>
+                <td dir="ltr" class="">97915,40</td>
+                <td dir="ltr">2,1%</td>
+              </tr>
+              
+              <tr class="table-warning">
+                <td>المالية</td>
+                <td dir="ltr">60000,00</td>
+                <td dir="ltr">0,00</td>
+                <td dir="ltr" class="">60000,00</td>
+                <td dir="ltr">0,0%</td>
+              </tr>
+              
+              <tr class="table-warning">
+                <td>الإدارة</td>
+                <td dir="ltr">39999,96</td>
+                <td dir="ltr">6200,00</td>
+                <td dir="ltr" class="">33799,96</td>
+                <td dir="ltr">15,5%</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س7: الحسابات الأعلى -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>7. ما الحسابات الأعلى صرفًا؟</strong>
+        <span class="text-muted small">— أعلى 8 حسابات بالتنفيذ الفعلي</span></div>
+      <div class="card-body">
+        <canvas id="chart-accounts" height="220"></canvas>
+        <ol class="small mt-2 mb-0">
+          
+          <li>خدمات — <span dir="ltr">6200,00</span></li>
+          
+          <li>مستلزمات — <span dir="ltr">2084,56</span></li>
+          
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س11: الاتجاه الشهري -->
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>11. ما الاتجاه الشهري؟</strong>
+        <span class="text-muted small">— سنة الفiscal كاملة (سياق) · الموازنة مقابل التنفيذ · يراعي فلاتر الإدارة/الحساب/التصنيف</span></div>
+      <div class="card-body">
+        <canvas id="chart-monthly" height="240"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س9: مستويات المخاطر -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>9. ما مستويات المخاطر؟</strong>
+        <span class="text-muted small">— منطق High/Medium/Low تفسيري فقط</span></div>
+      <div class="card-body text-center">
+        <canvas id="chart-risk" height="200"></canvas>
+        <div class="small mt-2">
+          High: <strong>6</strong> ·
+          Medium: <strong>5</strong> ·
+          Low: <strong>0</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س10: نتائج الاختبارات -->
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>10. ما نتائج Audit Tests؟</strong>
+        <span class="text-muted small">— آخر جولة من المحرك</span></div>
+      <div class="card-body">
+        
+        <div class="small mb-2">
+          الجولة <a href="/audit/runs/3/" dir="ltr">AR-2026-00003</a>
+          — كل الاختبارات المفعّلة ·
+          <span dir="ltr"></span>
+        </div>
+        <canvas id="chart-results" height="180"></canvas>
+        <div class="table-responsive mt-2">
+          <table class="table table-sm small mb-0">
+            <thead class="table-light"><tr><th>الاختبار</th><th>الحالة</th><th>سجلات</th><th>استثناءات</th></tr></thead>
+            <tbody>
+              
+              <tr>
+                <td dir="ltr">T-BUD-01</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">3</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-BUD-02</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-BUD-03</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-EXP-01</td>
+                <td>
+                  <span class="badge text-bg-warning">مُعلَّم</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">1</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-EXP-02</td>
+                <td>
+                  <span class="badge text-bg-warning">مُعلَّم</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">2</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-EXP-03</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-EXP-04</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-EXP-05</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-EXP-06</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-01</td>
+                <td>
+                  <span class="badge text-bg-warning">مُعلَّم</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">2</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-02</td>
+                <td>
+                  <span class="badge text-bg-warning">مُعلَّم</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">1</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-03</td>
+                <td>
+                  <span class="badge text-bg-warning">مُعلَّم</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">1</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-04</td>
+                <td>
+                  <span class="badge text-bg-success">ناجح</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">0</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-05</td>
+                <td>
+                  <span class="badge text-bg-warning">مُعلَّم</span>
+                  
+                </td>
+                <td dir="ltr">2</td>
+                <td dir="ltr">1</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س8: الاستثناءات -->
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>8. ما الاستثناءات؟</strong>
+        <span class="text-muted small">— الأحدث أولًا · افتح للانتقال إلى الاستثناء ← المصدر ← الاختبار</span></div>
+      <div class="card-body">
+        
+        <div class="table-responsive">
+          <table class="table table-sm small align-middle mb-0">
+            <thead class="table-light"><tr>
+              <th>الاختبار</th><th>الاستثناء</th><th>Risk</th><th>Status</th><th>المبلغ</th></tr></thead>
+            <tbody>
+              
+              <tr>
+                <td dir="ltr">T-PROC-05</td>
+                <td><a href="/audit/exceptions/11/">High-Value Low Competition</a></td>
+                <td>
+                  <span class="badge text-bg-danger">High</span>
+                  
+                </td>
+                <td>open</td>
+                <td dir="ltr">15000,00</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-03</td>
+                <td><a href="/audit/exceptions/10/">Incomplete Approval</a></td>
+                <td>
+                  <span class="badge text-bg-warning">Medium</span>
+                  
+                </td>
+                <td>open</td>
+                <td dir="ltr">4500,00</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-02</td>
+                <td><a href="/audit/exceptions/9/">Missing PO</a></td>
+                <td>
+                  <span class="badge text-bg-danger">High</span>
+                  
+                </td>
+                <td>open</td>
+                <td dir="ltr">15000,00</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-01</td>
+                <td><a href="/audit/exceptions/8/">Insufficient Quotations</a></td>
+                <td>
+                  <span class="badge text-bg-danger">High</span>
+                  
+                </td>
+                <td>open</td>
+                <td dir="ltr">15000,00</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-PROC-01</td>
+                <td><a href="/audit/exceptions/7/">Insufficient Quotations</a></td>
+                <td>
+                  <span class="badge text-bg-warning">Medium</span>
+                  
+                </td>
+                <td>open</td>
+                <td dir="ltr">4500,00</td>
+              </tr>
+              
+              <tr>
+                <td dir="ltr">T-EXP-02</td>
+                <td><a href="/audit/exceptions/6/">Large Cash Payment</a></td>
+                <td>
+                  <span class="badge text-bg-danger">High</span>
+                  
+                </td>
+                <td>open</td>
+                <td dir="ltr">6200,00</td>
+              </tr>
+              
+            </tbody>
+          </table>
+        </div>
+        <a class="btn btn-sm btn-outline-primary mt-2" href="/audit/exceptions/">سجل الاستثناءات الكامل ←</a>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س5: تفصيل خارج الموازنة -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white"><strong>5. تفصيل المصروفات خارج الموازنة</strong>
+        <span class="text-muted small">— مصروفات لا توجد تركيبة (إدارة × حساب) في أي سطر موازنة معتمد</span></div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm small mb-0">
+            <thead class="table-light"><tr>
+              <th>رقم المصروف</th><th>التاريخ</th><th>الإدارة</th><th>الحساب</th><th>المبلغ</th></tr></thead>
+            <tbody>
+              
+              <tr><td colspan="5" class="text-center text-muted">لا مصروفات خارج الموازنة ضمن الفلاتر الحالية ✓</td></tr>
+              
+            </tbody>
+          </table>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+</div>
+
+<script id="dash-charts" type="application/json">{"monthly": {"labels": ["\u064a\u0646\u0627\u064a\u0631", "\u0641\u0628\u0631\u0627\u064a\u0631", "\u0645\u0627\u0631\u0633", "\u0623\u0628\u0631\u064a\u0644", "\u0645\u0627\u064a\u0648", "\u064a\u0648\u0646\u064a\u0648", "\u064a\u0648\u0644\u064a\u0648", "\u0623\u063a\u0633\u0637\u0633", "\u0633\u0628\u062a\u0645\u0628\u0631", "\u0623\u0643\u062a\u0648\u0628\u0631", "\u0646\u0648\u0641\u0645\u0628\u0631", "\u062f\u064a\u0633\u0645\u0628\u0631"], "budget": [16666.66, 16666.66, 16666.66, 16666.66, 16666.66, 16666.66, 16666.66, 16666.66, 16666.66, 16666.66, 16666.66, 16666.66], "actual": [7050.0, 1234.56, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, "departments": {"labels": ["\u0627\u0644\u0639\u0645\u0644\u064a\u0627\u062a", "\u0627\u0644\u0645\u0627\u0644\u064a\u0629", "\u0627\u0644\u0625\u062f\u0627\u0631\u0629"], "budget": [99999.96, 60000.0, 39999.96], "actual": [2084.56, 0.0, 6200.0]}, "accounts": {"labels": ["\u0645\u0633\u062a\u0644\u0632\u0645\u0627\u062a", "\u062e\u062f\u0645\u0627\u062a"], "total": [2084.56, 6200.0]}, "risk": {"labels": ["High", "Medium", "Low"], "data": [6, 5, 0]}, "test_results": {"labels": ["\u0646\u0627\u062c\u062d", "\u0645\u064f\u0639\u0644\u064e\u0651\u0645", "\u0641\u0627\u0634\u0644"], "data": [8, 6, 0]}}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const data = JSON.parse(document.getElementById("dash-charts").textContent);
+  const rtl = { rtl: true, textDirection: "rtl" };
+  const grid = { color: "rgba(0,0,0,.07)" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: "bottom", ...rtl },
+               tooltip: { intersect: false, mode: "index" } },
+  };
+  const money = (v) => new Intl.NumberFormat("en-US").format(v);
+
+  new Chart(document.getElementById("chart-monthly"), {
+    type: "line",
+    data: {
+      labels: data.monthly.labels,
+      datasets: [
+        { label: "الموازنة الشهرية", data: data.monthly.budget,
+          borderColor: "#0d6efd", backgroundColor: "rgba(13,110,253,.15)",
+          fill: true, tension: .25 },
+        { label: "التنفيذ الفعلي", data: data.monthly.actual,
+          borderColor: "#dc3545", backgroundColor: "rgba(220,53,69,.15)",
+          fill: true, tension: .25 },
+      ],
+    },
+    options: { ...common,
+      scales: { y: { beginAtZero: true, ticks: { callback: money }, grid },
+                x: { grid } } },
+  });
+
+  new Chart(document.getElementById("chart-departments"), {
+    type: "bar",
+    data: {
+      labels: data.departments.labels,
+      datasets: [
+        { label: "الموازنة", data: data.departments.budget,
+          backgroundColor: "#0d6efd" },
+        { label: "التنفيذ", data: data.departments.actual,
+          backgroundColor: "#dc3545" },
+      ],
+    },
+    options: { ...common,
+      scales: { y: { beginAtZero: true, ticks: { callback: money }, grid },
+                x: { grid } } },
+  });
+
+  new Chart(document.getElementById("chart-accounts"), {
+    type: "bar",
+    data: {
+      labels: data.accounts.labels,
+      datasets: [{ label: "التنفيذ الفعلي", data: data.accounts.total,
+                   backgroundColor: "#198754" }],
+    },
+    options: { ...common, indexAxis: "y",
+      plugins: { ...common.plugins,
+        legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { callback: money }, grid },
+                y: { grid } } },
+  });
+
+  new Chart(document.getElementById("chart-risk"), {
+    type: "doughnut",
+    data: {
+      labels: data.risk.labels,
+      datasets: [{ data: data.risk.data,
+                   backgroundColor: ["#dc3545", "#ffc107", "#6c757d"] }],
+    },
+    options: { ...common,
+      plugins: { legend: { position: "bottom", ...rtl },
+                 tooltip: { mode: "nearest" } } },
+  });
+
+  const resultsCanvas = document.getElementById("chart-results");
+  if (resultsCanvas) {
+    new Chart(resultsCanvas, {
+      type: "doughnut",
+      data: {
+        labels: data.test_results.labels,
+        datasets: [{ data: data.test_results.data,
+                     backgroundColor: ["#198754", "#ffc107", "#dc3545"] }],
+      },
+      options: { ...common,
+        plugins: { legend: { position: "bottom", ...rtl },
+                   tooltip: { mode: "nearest" } } },
+    });
+  }
+})();
+</script>
+
+  </main>
+
+  <footer class="bg-dark text-white-50 small py-3 mt-auto border-top">
+    <div class="container-fluid d-flex flex-wrap justify-content-between gap-2">
+      <span>Audit Analytics &amp; Budget Control System — Independent Training &amp; Demonstration System</span>
+      <span>Owner: Abdulhameed — Internal Audit &amp; Financial Review Professional</span>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+</body>
+</html>

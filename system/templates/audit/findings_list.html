@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}النتائج والتوصيات{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">النتائج والتوصيات (Findings)</h1>
+    <div class="text-muted small">{{ findings|length }} نتيجة · Finding → Criteria → Condition → Impact → Cause* → Risk → Recommendation → Management Action → Status</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}<a class="btn btn-primary" href="{% url 'audit:finding_create' %}">+ نتيجة جديدة</a>{% endif %}
+    <a class="btn btn-outline-secondary" href="{% url 'audit:cycle_hub' %}">دورة المعالجة</a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_status">الحالة</label>
+        <select id="f_status" name="status" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          <option value="open" {% if sel.status == "open" %}selected{% endif %}>مفتوح</option>
+          <option value="in_progress" {% if sel.status == "in_progress" %}selected{% endif %}>قيد المعالجة</option>
+          <option value="closed" {% if sel.status == "closed" %}selected{% endif %}>مُغلق</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_risk">Risk</label>
+        <select id="f_risk" name="risk" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          <option value="High" {% if sel.risk == "High" %}selected{% endif %}>High</option>
+          <option value="Medium" {% if sel.risk == "Medium" %}selected{% endif %}>Medium</option>
+          <option value="Low" {% if sel.risk == "Low" %}selected{% endif %}>Low</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-1" for="f_q">بحث</label>
+        <input id="f_q" name="q" value="{{ sel.q }}" class="form-control form-control-sm" placeholder="رقم / عنوان / توصية">
+      </div>
+      <div class="col-md-1"><button class="btn btn-outline-primary btn-sm w-100">تطبيق</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr><th>الرقم</th><th>Finding</th><th>Risk</th><th>التوصية</th>
+            <th>إجراء الإدارة</th><th>Status</th><th>مرتبطة بـ</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for f in findings %}
+        <tr>
+          <td class="font-monospace" dir="ltr">{{ f.finding_code }}</td>
+          <td style="max-width:260px">{{ f.title }}</td>
+          <td>
+            {% if f.risk_level == "High" %}<span class="badge text-bg-danger">High</span>
+            {% elif f.risk_level == "Medium" %}<span class="badge text-bg-warning">Medium</span>
+            {% else %}<span class="badge text-bg-secondary">Low</span>{% endif %}
+          </td>
+          <td style="max-width:300px" class="text-muted">{{ f.recommendation|truncatechars:120 }}</td>
+          <td style="max-width:200px">{{ f.management_action|truncatechars:60|default:"—" }}</td>
+          <td>
+            {% if f.status == "closed" %}<span class="badge text-bg-success">{{ f.get_status_display }}</span>
+            {% elif f.status == "in_progress" %}<span class="badge text-bg-info">{{ f.get_status_display }}</span>
+            {% else %}<span class="badge text-bg-warning">{{ f.get_status_display }}</span>{% endif %}
+          </td>
+          <td>{{ f.exceptions.count }} استثناء</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{% url 'audit:finding_detail' f.pk %}">فتح</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">لا نتائج بعد — أنشئ واحدة من استثناء.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

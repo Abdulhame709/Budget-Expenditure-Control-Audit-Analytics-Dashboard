@@ -18,6 +18,16 @@ CSRF_TRUSTED_ORIGINS = [
     "http://0.0.0.0:8000",
 ]
 
+# Support Arena live preview and HTTPS reverse proxy
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+X_FRAME_OPTIONS = "ALLOWALL"
+
+# Cookie settings for cross-origin iframe preview
+CSRF_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_SECURE = True
+
 # Insecure-by-design development key; production.py refuses to start without a real one.
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or "django-insecure-dev-only-do-not-use-in-production"
 

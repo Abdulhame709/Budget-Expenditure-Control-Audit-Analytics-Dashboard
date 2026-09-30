@@ -1,0 +1,78 @@
+# =====================================================================
+# Budget & Expenditure Control — Audit Analytics System
+# .gitignore — redesigned in PHASE 16 review (publish/no-publish taxonomy)
+#
+# PUBLISHED (never ignored): system/ · README.md · evidence/ · output/
+#   phase deliverables & CSVs · PROJECT_WORKSHOP7_COMPLIANCE_REVIEW.md
+# NEVER PUBLISHED (below): secrets · environments · logs · local DB ·
+#   legacy archive that may carry real-world names.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1) Secrets & environment (never commit)
+# ---------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------
+# 2) Virtual environments
+# ---------------------------------------------------------------------
+.venv/
+venv/
+env/
+
+# ---------------------------------------------------------------------
+# 3) Python / Django runtime artifacts & logs
+# ---------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+*.log
+logs/
+system/staticfiles/
+staticfiles/
+
+# ---------------------------------------------------------------------
+# 4) Local database (never silent SQLite; local PG data stays local)
+# ---------------------------------------------------------------------
+.pgsql/
+db.sqlite3
+*.sqlite3
+
+# ---------------------------------------------------------------------
+# 5) Testing / coverage
+# ---------------------------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+coverage.xml
+
+# ---------------------------------------------------------------------
+# 6) OS / IDE
+# ---------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ---------------------------------------------------------------------
+# 7) Legacy archive — NEVER PUBLISH (owner decision, PHASE 16 review)
+#    Carried-over portfolio files whose content/banners may embed a
+#    real-world trade name. Kept out of GitHub on purpose; if they ever
+#    reappear on disk these rules keep them excluded. Do NOT stage.
+#    All patterns are root-anchored (/...) so they can never swallow
+#    published paths like system/requirements.txt or system/scripts/.
+# ---------------------------------------------------------------------
+/data/
+/docs/
+/scripts/
+/requirements.txt
+/output/*.xlsx

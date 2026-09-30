@@ -1,0 +1,146 @@
+{% load static %}{% load perms %}<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ SYSTEM_NAME_AR }}{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+  <div class="bg-warning text-dark text-center small py-1 border-bottom">
+    ⚠ {{ DEMO_NOTICE }}
+  </div>
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="{% url 'home' %}">
+        <span class="d-inline-block rounded-circle bg-white text-primary text-center"
+              style="width:26px;height:26px;line-height:26px;font-size:14px">رق</span>
+        {{ SYSTEM_NAME_AR }}
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="القائمة">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="{% url 'home' %}">الرئيسية</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'dashboard:index' %}">لوحة المؤشرات</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'reports:list' %}">التقارير</a></li>
+          {% perm user "reference.view" as can_ref %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if not can_ref %}disabled{% endif %}" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">وحدات النظام</a>
+            <ul class="dropdown-menu dropdown-menu-start">
+              {% if can_ref %}
+              <li><a class="dropdown-item" href="{% url 'reference:fiscal_year_list' %}">السنوات المالية</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:period_list' %}">الفترات الشهرية</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:department_list' %}">الإدارات</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:account_list' %}">دليل الحسابات</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:expense_category_list' %}">تصنيفات المصروفات</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:supplier_list' %}">الموردون</a></li>
+              {% perm user "budget.view" as can_budget %}
+              {% if can_budget %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'budget:budget_list' %}">الموازنة</a></li>
+              {% endif %}
+              {% perm user "expenses.view" as can_exp %}
+              {% if can_exp %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'expenses:list' %}">المصروفات الفعلية</a></li>
+              {% endif %}
+              {% perm user "procurement.view" as can_proc %}
+              {% if can_proc %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'procurement:list' %}">المشتريات</a></li>
+              {% endif %}
+              {% perm user "imports.view" as can_imports %}
+              {% if can_imports %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'imports:list' %}">الاستيراد (Excel/CSV/PDF)</a></li>
+              {% endif %}
+              <li><hr class="dropdown-divider"></li>
+              {% endif %}
+              <li><span class="dropdown-item-text text-muted small fst-italic">الموازنة والمصروفات والاختبارات — مراحل لاحقة</span></li>
+            </ul>
+          </li>
+          {% perm user "users.manage" as can_users %}
+          {% perm user "roles.manage" as can_roles %}
+          {% perm user "audittrail.view" as can_trail %}
+          {% if can_users or can_roles or can_trail %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+               aria-expanded="false">إدارة النظام</a>
+            <ul class="dropdown-menu">
+              {% if can_users %}<li><a class="dropdown-item" href="{% url 'accounts:users_list' %}">المستخدمون</a></li>{% endif %}
+              {% if can_roles %}<li><a class="dropdown-item" href="{% url 'accounts:roles_list' %}">الأدوار والصلاحيات</a></li>{% endif %}
+              {% perm user "audit.view" as can_audit %}
+              {% if can_audit %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'audit:cycle_hub' %}">دورة المعالجة الرقابية</a></li>
+              <li><a class="dropdown-item" href="{% url 'audit:tests_list' %}">الاختبارات الرقابية (المحرّك)</a></li>
+              <li><a class="dropdown-item" href="{% url 'audit:runs_list' %}">تشغيلات الاختبارات</a></li>
+              {% endif %}
+              {% perm user "exceptions.view" as can_exc %}
+              {% if can_exc %}
+              <li><a class="dropdown-item" href="{% url 'audit:exceptions_list' %}">سجل الاستثناءات</a></li>
+              {% endif %}
+              {% perm user "findings.view" as can_find %}
+              {% if can_find %}
+              <li><a class="dropdown-item" href="{% url 'audit:findings_list' %}">النتائج والتوصيات (Findings)</a></li>
+              {% endif %}
+              {% if can_trail %}<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="{% url 'governance:audit_trail' %}">سجل التدقيق</a></li>{% endif %}
+            </ul>
+          </li>
+          {% endif %}
+        </ul>
+
+        <ul class="navbar-nav mb-2 mb-lg-0">
+          {% if user.is_authenticated %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+                 aria-expanded="false">👤 {{ user.get_full_name|default:user.username }}</a>
+              <ul class="dropdown-menu dropdown-menu-start">
+                <li><a class="dropdown-item" href="{% url 'accounts:profile' %}">الملف الشخصي</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form method="post" action="{% url 'accounts:logout' %}" class="m-0">
+                    {% csrf_token %}
+                    <button class="dropdown-item" type="submit">تسجيل الخروج</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+          {% else %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'accounts:login' %}">تسجيل الدخول</a></li>
+          {% endif %}
+        </ul>
+        <span class="navbar-text small text-white-50">PHASE 4 — البيانات المرجعية</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid py-4 flex-grow-1">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="bg-dark text-white-50 small py-3 mt-auto border-top">
+    <div class="container-fluid d-flex flex-wrap justify-content-between gap-2">
+      <span>{{ SYSTEM_NAME_EN }} — {{ SYSTEM_CONTEXT }}</span>
+      <span>Owner: {{ SYSTEM_OWNER }}</span>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

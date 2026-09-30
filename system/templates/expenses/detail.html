@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load attachments %}
+{% block title %}{{ e.expense_number }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small mb-1">
+      <li class="breadcrumb-item"><a href="{% url 'expenses:list' %}">المصروفات الفعلية</a></li>
+      <li class="breadcrumb-item active" dir="ltr">{{ e.expense_number }}</li>
+    </ol></nav>
+    <h1 class="h4 mb-0" dir="ltr">{{ e.expense_number }}</h1>
+    <div>
+      {% if e.approval_reference %}<span class="badge text-bg-success">معتمد — {{ e.approval_reference }}</span>
+      {% else %}<span class="badge text-bg-secondary">بلا اعتماد</span>{% endif %}
+      <span class="badge text-bg-light border">{{ e.currency }}</span>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'expenses:list' %}">← القائمة</a>
+    {% if can_edit %}<a class="btn btn-primary" href="{{ edit_url }}">تعديل</a>{% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">القيد</div>
+      <div class="card-body">
+        <table class="table mb-0">
+          <tbody>
+            <tr><th class="w-40">التاريخ</th><td>{{ e.expense_date }}</td></tr>
+            <tr><th>الفترة المحاسبية</th>
+                <td>{{ e.period.fiscal_year.code }} — ش{{ e.period.month }}
+                    ({{ e.period.start_date }} — {{ e.period.end_date }})
+                    {% if e.period.is_closed %}<span class="badge text-bg-danger">مغلقة</span>
+                    {% else %}<span class="badge text-bg-success">مفتوحة</span>{% endif %}</td></tr>
+            <tr><th>الإدارة</th><td>{{ e.department }}</td></tr>
+            <tr><th>الحساب (COA)</th><td>{{ e.account }}</td></tr>
+            <tr><th>التصنيف</th><td>{{ e.expense_category|default:"—" }}</td></tr>
+            <tr><th>المورّد</th><td>{{ e.supplier|default:"—" }}</td></tr>
+            <tr><th>البيان</th><td>{{ e.description|linebreaksbr }}</td></tr>
+            <tr><th>المبلغ</th>
+                <td class="fs-5 fw-bold font-monospace" dir="ltr">{{ e.amount }} {{ e.currency }}</td></tr>
+            <tr><th>طريقة الدفع</th><td>{{ e.get_payment_method_display }}</td></tr>
+            <tr><th>مرجع الدفع</th><td dir="ltr">{{ e.payment_reference|default:"—" }}</td></tr>
+            <tr><th>مرجع الفاتورة</th><td dir="ltr">{{ e.invoice_reference|default:"—" }}</td></tr>
+            <tr><th>الاعتماد</th>
+                <td>{{ e.approval_reference|default:"—"
+                    }}{% if e.approved_by %} · {{ e.approved_by }} · {{ e.approved_at|date:"Y-m-d H:i" }}{% endif %}</td></tr>
+          </tbody>
+        </table>
+        <div class="small text-muted mt-2">
+          أُنشئ بواسطة {{ e.created_by|default:"—" }} · {{ e.created_at|date:"Y-m-d H:i" }}
+          {% if e.updated_by %} · عُدّل بواسطة {{ e.updated_by }} · {{ e.updated_at|date:"Y-m-d H:i" }}{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold">المستند المرفق</div>
+      <div class="card-body">
+        {% if e.attachment %}
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="font-monospace small" dir="ltr">{{ e.attachment.name }}</span>
+          <a class="btn btn-sm btn-outline-primary" href="{{ attachment_url }}" target="_blank">عرض المستند</a>
+        </div>
+        {% else %}
+        <span class="text-muted small">لا يوجد مستند مرفق.</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold">ربط الميزانية (تحليل حيّ من DB)</div>
+      <div class="card-body small">
+        {% if budget_ctx.analysis_version %}
+        <div>الميزانية: <strong>{{ budget_ctx.budget }}</strong> — النسخة
+          <span dir="ltr">v{{ budget_ctx.analysis_version.version }}</span>
+          (المعتمدة، المستخدمة في التحليل)</div>
+        {% else %}
+        <div class="text-warning">{{ budget_ctx.reason }}</div>
+        {% endif %}
+        {% if budget_ctx.line %}
+        <div class="mt-1">سطر الميزانية المطابق (إدارة+حساب):
+          <span class="font-monospace" dir="ltr">{{ budget_ctx.monthly_budget }}</span>
+          مخصص لشهر {{ e.expense_date.month }} · سنوي
+          <span class="font-monospace" dir="ltr">{{ budget_ctx.line.annual_amount }}</span></div>
+        {% elif budget_ctx.analysis_version %}
+        <div class="mt-1 text-danger">{{ budget_ctx.reason }}</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if can_trail %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">سجل التدقيق لهذا المصروف</div>
+      <div class="card-body">
+        {% for log in audit_rows %}
+        <div class="border-bottom pb-2 mb-2 small">
+          <span class="badge text-bg-secondary">{{ log.get_action_display }}</span>
+          <span class="text-muted">{{ log.created_at|date:"Y-m-d H:i" }} · {{ log.actor_label|default:"system" }}</span>
+          {% if log.diff %}<div class="font-monospace text-muted" dir="ltr" style="white-space:pre-wrap">{{ log.diff }}</div>{% endif %}
+        </div>
+        {% empty %}
+        <div class="text-muted small">لا أحداث بعد.</div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% attachment_section "expense" e.pk %}
+
+{% endblock %}

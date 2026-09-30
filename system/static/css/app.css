@@ -1,0 +1,45 @@
+/* System-wide refinements — professional financial/audit look, no ornament. */
+:root {
+  --sys-primary: #1f3864;
+}
+
+body {
+  font-family: "Segoe UI", Tahoma, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
+}
+
+.navbar.bg-primary {
+  background-color: var(--sys-primary) !important;
+}
+
+.card {
+  border-radius: .5rem;
+}
+
+.font-monospace {
+  font-size: .85rem;
+}
+
+footer small, footer span {
+  font-size: .78rem;
+}
+
+/* ---------------------------------------------------------------- PHASE 12
+   Print CSS — حفظ PDF عبر متصفح الطباعة (لا خادم PDF) */
+.print-only { display: none; }
+.report-table th, .report-table td { border: 1px solid #dee2e6; }
+
+@media print {
+  nav, footer, .no-print, .alert, form.card, button, .btn,
+  [class*="btn-"] { display: none !important; }
+  .print-only { display: block !important; }
+  .print-header {
+    border-bottom: 2pt solid #000;
+    margin-bottom: 8pt; padding-bottom: 6pt;
+  }
+  body { background: #fff !important; }
+  .card { border: 1pt solid #999 !important; box-shadow: none !important; }
+  .table { font-size: 10pt; }
+  .table thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+  main { padding-top: 0 !important; }
+}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}مستخدم جديد{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">إنشاء مستخدم جديد</h1>
+<div class="card border-0 shadow-sm" style="max-width:640px">
+  <div class="card-body">
+    <form method="post" action="{% url 'accounts:user_create' %}">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form %}
+        <div class="mb-3 {% if field.name == 'roles' %}border rounded p-3 bg-light{% endif %}">
+          {% if field.name == 'is_demo' %}
+            <div class="form-check">
+              {{ field }}
+              <label class="form-check-label ms-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            </div>
+          {% else %}
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          {% endif %}
+          {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+          {% if field.errors %}<div class="text-danger small">{{ field.errors }}</div>{% endif %}
+        </div>
+      {% endfor %}
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary" type="submit">إنشاء</button>
+        <a class="btn btn-outline-secondary" href="{% url 'accounts:users_list' %}">إلغاء</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

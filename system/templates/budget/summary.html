@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}ملخص الميزانية{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb small mb-1">
+  <li class="breadcrumb-item"><a href="{% url 'budget:budget_list' %}">الموازنة</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'budget:budget_detail' budget.pk %}">{{ budget }}</a></li>
+  <li class="breadcrumb-item active">ملخص v{{ version.version }}</li>
+</ol></nav>
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h1 class="h4 mb-0">ملخص الميزانية — <span dir="ltr">v{{ version.version }}</span></h1>
+  <a class="btn btn-outline-secondary" href="{{ back_url }}">← رجوع للنسخة</a>
+</div>
+
+{% if is_analysis %}
+<div class="alert alert-success">
+  <strong>هذه هي النسخة المستخدمة في التحليل</strong> (آخر نسخة معتمدة) —
+  كل الأرقام أدناه محسوبة الآن من قاعدة البيانات (SUM/aggregate).
+</div>
+{% else %}
+<div class="alert alert-warning">
+  هذه النسخة <strong>ليست</strong> النسخة المستخدمة في التحليل —
+  النسخة المعتمدة:
+  {% if budget.analysis_version %}
+    <span dir="ltr">v{{ budget.analysis_version.version }}</span>
+  {% else %}لا توجد نسخة معتمدة بعد{% endif %}.
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-bold">الإجمالي السنوي</div>
+      <div class="card-body">
+        <div class="display-6 font-monospace" dir="ltr">{{ totals.annual_total }}</div>
+        <div class="text-muted small">{{ totals.line_count }} سطر ميزانية</div>
+        <hr>
+        <table class="table table-sm mb-0">
+          <thead><th>الشهر</th><th class="text-end">المبلغ (SUM من DB)</th></thead>
+          <tbody>
+            {% for m in totals.monthly %}
+            <tr><td>شهر {{ forloop.counter }}</td>
+                <td class="font-monospace text-end" dir="ltr">{{ m }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-bold">حسب الإدارة</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <thead><th>الإدارة</th><th class="text-end">السنوي</th></thead>
+          <tbody>
+            {% for r in by_department %}
+            <tr><td>{{ r.label }}</td>
+                <td class="font-monospace text-end" dir="ltr">{{ r.total }}</td></tr>
+            {% empty %}<tr><td colspan="2" class="text-muted">لا سطور.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-bold">حسب الحساب</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <thead><th>الحساب</th><th class="text-end">السنوي</th></thead>
+          <tbody>
+            {% for r in by_account %}
+            <tr><td>{{ r.label }}</td>
+                <td class="font-monospace text-end" dir="ltr">{{ r.total }}</td></tr>
+            {% empty %}<tr><td colspan="2" class="text-muted">لا سطور.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-bold">حسب تصنيف المصروف</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <thead><th>التصنيف</th><th class="text-end">السنوي</th></thead>
+          <tbody>
+            {% for r in by_category %}
+            <tr><td>{{ r.label }}</td>
+                <td class="font-monospace text-end" dir="ltr">{{ r.total }}</td></tr>
+            {% empty %}<tr><td colspan="2" class="text-muted">لا سطور.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white fw-bold">أساس لاحق: Budget vs Actual / Variance / Out-of-Budget</div>
+      <div class="card-body small text-muted">
+        هذه الصفحة تُظهر <strong>جانب الميزانية فقط</strong> من الحساب (من DB).
+        عند وصول وحدة المصروفات الفعلية (Actuals) ستُحتسب:
+        <ul class="mb-0">
+          <li><strong>Variance</strong> = فعلي − ميزانية (على مستوى السطر/الشهر عبر
+            <code>monthly_budget_map</code>).</li>
+          <li><strong>Out-of-Budget</strong> = مصروف بلا تغطية
+            (<code>is_budgeted</code> على نفس الإدارة+الحساب).</li>
+          <li><strong>Budget vs Actual</strong> = جدول يدمج هذين الجانبين.</li>
+        </ul>
+        لم يُنفَّذ بعد (PHASE مخصّصة لاحقًا) — الأساس والاختبارات جاهزة.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

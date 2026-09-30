@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}الاختبارات الرقابية{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">محرّك الاختبارات الرقابية (DB-driven)</h1>
+    <div class="text-muted small">{{ tests|length }} اختبارًا · القواعد والعتبات تُقرأ من قاعدة البيانات · كل العتبات معلّمة Synthetic/Training</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'audit:runs_list' %}">سجل التشغيلات</a>
+    <a class="btn btn-outline-secondary" href="{% url 'audit:exceptions_list' %}">الاستثناءات</a>
+    {% if can_manage %}<a class="btn btn-primary" href="{% url 'audit:test_create' %}">+ اختبار جديد</a>{% endif %}
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- run controls #}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center">
+    <form method="post" action="{% url 'audit:run_start' %}" class="d-inline">
+      {% csrf_token %}
+      <input type="hidden" name="mode" value="all_active">
+      <button class="btn btn-success">تشغيل كل الاختبارات المفعّلة ({{ active_count }})</button>
+    </form>
+    <button class="btn btn-outline-success" form="run-selected">تشغيل المحدد من الجدول ✓</button>
+    {% if last_run %}
+    <span class="small text-muted ms-auto">آخر تشغيل:
+      <a href="{% url 'audit:run_detail' last_run.pk %}">{{ last_run.run_number }}</a>
+      — {{ last_run.summary_line }}</span>
+    {% endif %}
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- tests table #}
+<div class="card border-0 shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr>
+          <th><input type="checkbox" class="form-check-input" title="تحديد الكل" onclick="document.querySelectorAll('.t-pick').forEach(c=>c.checked=this.checked)"></th>
+          <th>Test ID</th><th>Name</th><th>النطاق</th><th>القاعدة (Rule)</th>
+          <th>Exception Type</th><th>Default Risk</th><th>مفعّل</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tests %}
+        <tr {% if not t.is_active %}class="table-secondary"{% endif %}>
+          <td><input type="checkbox" class="form-check-input t-pick" form="run-selected" name="test_ids" value="{{ t.pk }}"></td>
+          <td class="font-monospace" dir="ltr">{{ t.test_code }}</td>
+          <td>{{ t.name }}</td>
+          <td>{{ t.get_domain_display }}</td>
+          <td style="max-width:340px">
+            <span class="d-inline">{{ t.rule_text|truncatechars:160 }}</span>
+            {% if t.synthetic_rule %}<span class="badge text-bg-warning">Synthetic Rule</span>{% endif %}
+          </td>
+          <td class="small">{{ t.exception_type }}</td>
+          <td>
+            {% if t.default_risk == "High" %}<span class="badge text-bg-danger">High</span>
+            {% elif t.default_risk == "Medium" %}<span class="badge text-bg-warning">Medium</span>
+            {% else %}<span class="badge text-bg-secondary">Low</span>{% endif %}
+          </td>
+          <td>
+            <form method="post" action="{% url 'audit:test_toggle' t.pk %}" class="d-inline">
+              {% csrf_token %}
+              <button class="btn btn-sm {% if t.is_active %}btn-outline-success{% else %}btn-outline-secondary{% endif %}">
+                {% if t.is_active %}مفعّل{% else %}معطّل{% endif %}
+              </button>
+            </form>
+          </td>
+          <td class="text-nowrap">
+            <form method="post" action="{% url 'audit:run_start' %}" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="mode" value="single">
+              <input type="hidden" name="test_ids" value="{{ t.pk }}">
+              <button class="btn btn-sm btn-success">تشغيل</button>
+            </form>
+            {% if can_manage %}
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'audit:test_edit' t.pk %}">تعديل</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# selected-runs form (checkboxes bound above belong to this form) #}
+<form id="run-selected" method="post" action="{% url 'audit:run_start' %}">
+  {% csrf_token %}
+  <input type="hidden" name="mode" value="selected">
+</form>
+
+<div class="card border-0 shadow-sm mt-3">
+  <div class="card-body small text-muted">
+    <strong>ملاحظة تدقيقية:</strong> كل اختبار يعرض:
+    Test ID · Name · Objective · Rule · Parameters (JSON) · Data Source ·
+    Expected Result · Exception Type · Default Risk · Auditor Action ·
+    Active/Inactive — «تعديل» يفتح كل الحقول بما فيها المعاملات.
+    نتيجة كل تشغيل: pass / flagged / fail مع تفسير ولقطة المعاملات وقت التشغيل
+    وتتبّع لكل استثناء إلى معاملته المصدر.
+  </div>
+</div>
+{% endblock %}

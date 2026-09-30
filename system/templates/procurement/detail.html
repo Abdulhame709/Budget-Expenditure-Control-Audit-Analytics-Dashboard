@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load attachments %}
+{% block title %}{{ p.reference_number }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small mb-1">
+      <li class="breadcrumb-item"><a href="{% url 'procurement:list' %}">المشتريات</a></li>
+      <li class="breadcrumb-item active" dir="ltr">{{ p.reference_number }}</li>
+    </ol></nav>
+    <h1 class="h4 mb-0" dir="ltr">{{ p.reference_number }}</h1>
+    <div>
+      <span class="badge {% if p.status == 'cancelled' %}text-bg-danger{% elif p.status == 'received' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ p.get_status_display }}</span>
+      {% if p.has_po %}<span class="badge text-bg-success">PO: {{ p.purchase_order }}</span>
+      {% else %}<span class="badge text-bg-warning">بدون PO</span>{% endif %}
+      {% if p.has_approval %}<span class="badge text-bg-success">معتمد</span>
+      {% else %}<span class="badge text-bg-warning">بلا اعتماد</span>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{% url 'procurement:list' %}">← القائمة</a>
+    {% if can_edit %}
+    <a class="btn btn-outline-primary" href="{{ edit_url }}">تعديل</a>
+    <form method="post" action="{{ delete_url }}" class="d-inline"
+          onsubmit="return confirm('حذف السجل نهائيًا؟ (يُسجَّل في سجل التدقيق)');">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger" type="submit">حذف</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">بيانات السجل</div>
+      <div class="card-body">
+        <table class="table mb-0">
+          <tbody>
+            <tr><th class="w-40">التاريخ</th><td>{{ p.date }}</td></tr>
+            <tr><th>الإدارة</th><td>{{ p.department }}</td></tr>
+            <tr><th>المورّد</th><td>{{ p.supplier }}<div class="small text-muted">
+              {% if p.supplier.tax_number %}ضريبي: <span dir="ltr">{{ p.supplier.tax_number }}</span> · {% endif %}
+              {% if p.supplier.phone %}هاتف: <span dir="ltr">{{ p.supplier.phone }}</span>{% endif %}</div></td></tr>
+            <tr><th>الحساب (COA)</th><td>{{ p.account }}</td></tr>
+            <tr><th>التصنيف</th><td>{{ p.expense_category|default:"—" }}</td></tr>
+            <tr><th>البيان</th><td>{{ p.description|linebreaksbr }}</td></tr>
+            <tr><th>المبلغ</th><td class="fs-5 fw-bold font-monospace" dir="ltr">{{ p.amount }}</td></tr>
+            <tr><th>أمر الشراء (PO)</th><td dir="ltr">{{ p.purchase_order|default:"— غائب —" }}</td></tr>
+            <tr><th>الاعتماد</th><td>{{ p.approval_reference|default:"—"
+                }}{% if p.approved_by %} · {{ p.approved_by }} · {{ p.approved_at|date:"Y-m-d H:i" }}{% endif %}</td></tr>
+            <tr><th>الدفع</th><td>{{ p.get_payment_method_display }} ·
+                <span dir="ltr">{{ p.payment_reference|default:"—" }}</span></td></tr>
+            <tr><th>ملاحظات</th><td>{{ p.notes|default:"—" }}</td></tr>
+          </tbody>
+        </table>
+        <div class="small text-muted mt-2">
+          أُنشئ بواسطة {{ p.created_by|default:"—" }} · {{ p.created_at|date:"Y-m-d H:i" }}
+          {% if p.updated_by %} · عُدّل بواسطة {{ p.updated_by }} · {{ p.updated_at|date:"Y-m-d H:i" }}{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold d-flex justify-content-between">
+        <span>عروض الموردين</span>
+        <span class="badge text-bg-primary">{{ audit_ctx.quote_count }} عرض</span>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm mb-2">
+          <thead><tr><th>المورّد</th><th class="text-end">القيمة</th><th>التاريخ</th><th>المرجع</th><th></th></tr></thead>
+          <tbody>
+            {% for q in quotes %}
+            <tr>
+              <td>{{ q.supplier.name }}</td>
+              <td class="text-end font-monospace" dir="ltr">{{ q.amount }}</td>
+              <td class="small">{{ q.offer_date|default:"—" }}</td>
+              <td class="small" dir="ltr">{{ q.reference|default:"—" }}</td>
+              <td class="text-end text-nowrap">
+                {% if can_edit %}
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'procurement:quote_edit' q.pk %}">تعديل</a>
+                <form method="post" action="{% url 'procurement:quote_delete' q.pk %}" class="d-inline"
+                      onsubmit="return confirm('حذف العرض؟');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger" type="submit">حذف</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-muted small text-center">لا عروض — (غياب عروض الموردين معلومة تدقيقية)</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if can_edit %}
+        <a class="btn btn-sm btn-primary" href="{{ quote_create_url }}">+ عرض مورّد</a>
+        {% endif %}
+        {% if audit_ctx.lowest_quote %}
+        <div class="small text-muted mt-2">أدنى عرض:
+          <span class="font-monospace" dir="ltr">{{ audit_ctx.lowest_quote }}</span></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold">المستند المرفق</div>
+      <div class="card-body">
+        {% if p.attachment %}
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="font-monospace small" dir="ltr">{{ p.attachment.name }}</span>
+          <a class="btn btn-sm btn-outline-primary" href="{{ attachment_url }}" target="_blank">عرض المستند</a>
+        </div>
+        {% else %}<span class="text-muted small">لا يوجد مستند مرفق.</span>{% endif %}
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white fw-bold">حقائق اختبارات الرقابة (من DB)</div>
+      <div class="card-body small">
+        <div class="row text-center">
+          <div class="col-4"><div class="fw-bold">{{ audit_ctx.quote_count }}</div><div class="text-muted">عروض</div></div>
+          <div class="col-4"><div class="fw-bold">{% if audit_ctx.has_po %}موجود{% else %}غائب{% endif %}</div><div class="text-muted">PO</div></div>
+          <div class="col-4"><div class="fw-bold">{% if audit_ctx.has_approval %}موجود{% else %}غائب{% endif %}</div><div class="text-muted">اعتماد</div></div>
+        </div>
+        <div class="mt-2 text-muted">
+          مرفق: {% if audit_ctx.has_attachment %}موجود{% else %}غائب{% endif %} ·
+          حساب: <span dir="ltr">{{ audit_ctx.account }}</span> ·
+          تصنيف: {{ audit_ctx.category|default:"—" }} ·
+          حالة: {{ p.get_status_display }}
+        </div>
+        <div class="text-muted small mt-1">هذه الحقيقة نفسها تستهلكها اختبارات المشتريات القادمة عبر
+          <code>procurement_audit_context()</code>.</div>
+      </div>
+    </div>
+
+    {% if can_trail %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">سجل التدقيق لهذا السجل</div>
+      <div class="card-body">
+        {% for log in audit_rows %}
+        <div class="border-bottom pb-2 mb-2 small">
+          <span class="badge text-bg-secondary">{{ log.get_action_display }}</span>
+          <span class="text-muted">{{ log.created_at|date:"Y-m-d H:i" }} · {{ log.actor_label|default:"system" }}</span>
+          {% if log.diff %}<div class="font-monospace text-muted" dir="ltr" style="white-space:pre-wrap">{{ log.diff }}</div>{% endif %}
+        </div>
+        {% empty %}<div class="text-muted small">لا أحداث بعد.</div>{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% attachment_section "procurement" p.pk %}
+
+{% endblock %}

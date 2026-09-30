@@ -1,0 +1,6 @@
+﻿Date,Department,Account,Supplier,Description,Amount,Invoice,Currency,Payment Method
+2026-01-12,OPS,5102,SUP-01,شراء أوراق طباعة,182.75,INV-S1,USD,transfer
+2026-02-04,FINANCE,5210,SUP-02,سفر تفقد ميداني,95,INV-S2,USD,cash
+2026-02-15,ADMIN,5102,SUP-03,ضيافة مكاتب,64.25,INV-S3,YER,check
+2026-01-20,OPS,5102,SUP-01,مبلغ غير صالح,-10,INV-S4,USD,cash
+2026-01-12,OPS,5102,SUP-01,شراء أوراق طباعة,182.75,INV-S1,USD,transfer

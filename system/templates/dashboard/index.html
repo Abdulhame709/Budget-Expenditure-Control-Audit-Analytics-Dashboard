@@ -1,0 +1,416 @@
+{% extends "base.html" %}
+{% block title %}لوحة المؤشرات التحليلية{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">لوحة المؤشرات التحليلية (Dashboard)</h1>
+    <div class="text-muted small">
+      استعلامات حية من PostgreSQL وقت الطلب — لا أرقام ثابتة ·
+      عملة الأساس USD · منطق تفسيري بسيط <strong>لا AI/ML</strong> · Synthetic Training Data
+    </div>
+  </div>
+  <div class="small text-muted" dir="ltr">تحديث: {{ now|date:"Y-m-d H:i" }}</div>
+</div>
+
+<!-- ====================================================== الفلاتر -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_period">الفترة (Period)</label>
+        <select id="f_period" name="period" class="form-select form-select-sm">
+          <option value="">كل السنة</option>
+          {% for p in filter_options.periods %}
+          <option value="{{ p.id }}" {% if filters.period == p.id %}selected{% endif %}>{{ p.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_department">الإدارة (Department)</label>
+        <select id="f_department" name="department" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for d in filter_options.departments %}
+          <option value="{{ d.id }}" {% if filters.department == d.id %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_account">الحساب (Account)</label>
+        <select id="f_account" name="account" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for a in filter_options.accounts %}
+          <option value="{{ a.id }}" {% if filters.account == a.id %}selected{% endif %}>{{ a.code }} — {{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_category">التصنيف (Category)</label>
+        <select id="f_category" name="category" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for c in filter_options.categories %}
+          <option value="{{ c.id }}" {% if filters.category == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1 col-6">
+        <label class="form-label small mb-1" for="f_risk">الخطر (Risk)</label>
+        <select id="f_risk" name="risk" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for r in filter_options.risks %}
+          <option value="{{ r }}" {% if filters.risk == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1" for="f_test">الاختبار (Test)</label>
+        <select id="f_test" name="test" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for t in filter_options.tests %}
+          <option value="{{ t.test_code }}" {% if filters.test == t.test_code %}selected{% endif %}>{{ t.test_code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1 col-6 d-flex gap-1">
+        <button class="btn btn-primary btn-sm flex-grow-1">تطبيق</button>
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'dashboard:index' %}" title="إعادة تعيين">↺</a>
+      </div>
+    </form>
+    <div class="text-muted small mt-1">
+      نافذة التحليل:
+      {% if window.from %}<span dir="ltr">{{ window.from }} → {{ window.to }}</span>
+      {% else %}لا توجد سنة مالية — عرض تلقائي{% endif %}
+      · فلاتر الإدارة/الحساب/التصنيف تؤثر على المقاييس المالية والاتجاه ·
+      فلترا الخطر والاختبار يؤثران على الاستثناءات ونتائج الاختبارات ·
+      فلتر الفترة نافذة مالية (تاريخ المعاملات) لا تاريخ رصد الاستثناءات
+    </div>
+  </div>
+</div>
+
+<!-- ====================================== KPIs (الأسئلة 1–5, 8–9) -->
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">1. ما Budget؟ — Effective Budget</div>
+      <div class="fs-5 fw-bold" dir="ltr">{{ kpis_fmt.effective_budget }}</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">2. ما Actual Spend؟ — Actual Expenses</div>
+      <div class="fs-5 fw-bold text-danger" dir="ltr">{{ kpis_fmt.actual }}</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">3. ما Variance؟ — Budget − Actual</div>
+      <div class="fs-5 fw-bold {% if kpis.variance < 0 %}text-danger{% else %}text-success{% endif %}" dir="ltr">{{ kpis_fmt.variance }}</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">4. ما نسبة الاستخدام؟ — Utilization %</div>
+      <div class="fs-5 fw-bold" dir="ltr">{{ kpis_fmt.utilization }}{% if kpis.utilization is not None %}%{% endif %}</div>
+      <div class="progress mt-1" style="height:6px">
+        <div class="progress-bar {% if kpis.utilization and kpis.utilization > 100 %}bg-danger{% else %}bg-success{% endif %}"
+             style="width: {{ kpis.utilization|default:0|floatformat:0 }}%"></div>
+      </div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">5. المصروفات خارج الموازنة — Out-of-Budget</div>
+      <div class="fs-5 fw-bold text-warning" dir="ltr">{{ kpis_fmt.oob_amount }}</div>
+      <div class="small text-muted">{{ kpis_fmt.oob_count }} مصروف بلا تركيبة موازنة معتمدة</div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">8. ما الاستثناءات؟ — Exception Count</div>
+      <div class="fs-5 fw-bold" dir="ltr">{{ kpis_fmt.exceptions }}</div>
+      <div class="small text-muted">
+        {% for code, s in status_counts.items %}{{ s.label }}: {{ s.n }}{% if not forloop.last %} · {% endif %}{% endfor %}
+      </div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100 border-start border-danger border-3">
+    <div class="card-body py-2">
+      <div class="small text-muted">9. High Risk Count</div>
+      <div class="fs-5 fw-bold text-danger" dir="ltr">{{ kpis_fmt.high_risk }}</div>
+      <div class="small text-muted">
+        High {{ risk_counts.High }} · Medium {{ risk_counts.Medium }} · Low {{ risk_counts.Low }}
+      </div>
+    </div></div></div>
+  <div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100">
+    <div class="card-body py-2">
+      <div class="small text-muted">Procurement Exceptions</div>
+      <div class="fs-5 fw-bold" dir="ltr">{{ kpis_fmt.proc_exceptions }}</div>
+      <div class="small text-muted">استثناءات مصدرها المشتريات</div>
+    </div></div></div>
+</div>
+
+<div class="row g-3">
+  <!-- ==================================== س6: الإدارات -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>6. ما الإدارات ذات الانحرافات؟</strong>
+        <span class="text-muted small">— الموازنة مقابل التنفيذ لكل إدارة (فلتر الإدارة يُحدثها)</span></div>
+      <div class="card-body">
+        <canvas id="chart-departments" height="220"></canvas>
+        <div class="table-responsive mt-2">
+          <table class="table table-sm small align-middle mb-0">
+            <thead class="table-light"><tr>
+              <th>الإدارة</th><th>الموازنة</th><th>التنفيذ</th>
+              <th>Variance</th><th>Util%</th></tr></thead>
+            <tbody>
+              {% for r in dept_rows %}
+              <tr {% if r.has_variance %}class="table-warning"{% endif %}>
+                <td>{{ r.name }}{% if not r.has_variance %} <span class="badge text-bg-light border">بلا انحراف</span>{% endif %}</td>
+                <td dir="ltr">{{ r.budget|floatformat:2 }}</td>
+                <td dir="ltr">{{ r.actual|floatformat:2 }}</td>
+                <td dir="ltr" class="{% if r.variance < 0 %}text-danger{% endif %}">{{ r.variance|floatformat:2 }}</td>
+                <td dir="ltr">{% if r.utilization is not None %}{{ r.utilization|floatformat:1 }}%{% else %}—{% endif %}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-muted">لا توجد بيانات ضمن الفلاتر الحالية.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س7: الحسابات الأعلى -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>7. ما الحسابات الأعلى صرفًا؟</strong>
+        <span class="text-muted small">— أعلى 8 حسابات بالتنفيذ الفعلي</span></div>
+      <div class="card-body">
+        <canvas id="chart-accounts" height="220"></canvas>
+        <ol class="small mt-2 mb-0">
+          {% for a in top_accounts %}
+          <li>{{ a.name }} — <span dir="ltr">{{ a.total|floatformat:2 }}</span></li>
+          {% empty %}<li class="text-muted list-unstyled">لا مصروفات ضمن الفلاتر الحالية.</li>{% endfor %}
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س11: الاتجاه الشهري -->
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>11. ما الاتجاه الشهري؟</strong>
+        <span class="text-muted small">— سنة الفiscal كاملة (سياق) · الموازنة مقابل التنفيذ · يراعي فلاتر الإدارة/الحساب/التصنيف</span></div>
+      <div class="card-body">
+        <canvas id="chart-monthly" height="240"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س9: مستويات المخاطر -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>9. ما مستويات المخاطر؟</strong>
+        <span class="text-muted small">— منطق High/Medium/Low تفسيري فقط</span></div>
+      <div class="card-body text-center">
+        <canvas id="chart-risk" height="200"></canvas>
+        <div class="small mt-2">
+          High: <strong>{{ risk_counts.High }}</strong> ·
+          Medium: <strong>{{ risk_counts.Medium }}</strong> ·
+          Low: <strong>{{ risk_counts.Low }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س10: نتائج الاختبارات -->
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>10. ما نتائج Audit Tests؟</strong>
+        <span class="text-muted small">— آخر جولة من المحرك</span></div>
+      <div class="card-body">
+        {% if latest_run %}
+        <div class="small mb-2">
+          الجولة <a href="{% url 'audit:run_detail' latest_run.pk %}" dir="ltr">{{ latest_run.run_number }}</a>
+          — {{ latest_run_mode }} ·
+          <span dir="ltr">{{ latest_run.finished_at|date:"Y-m-d H:i"|default:latest_run.started_at|date:"Y-m-d H:i" }}</span>
+        </div>
+        <canvas id="chart-results" height="180"></canvas>
+        <div class="table-responsive mt-2">
+          <table class="table table-sm small mb-0">
+            <thead class="table-light"><tr><th>الاختبار</th><th>الحالة</th><th>سجلات</th><th>استثناءات</th></tr></thead>
+            <tbody>
+              {% for r in result_rows %}
+              <tr>
+                <td dir="ltr">{{ r.code }}</td>
+                <td>
+                  {% if r.status == "pass" %}<span class="badge text-bg-success">{{ r.label }}</span>
+                  {% elif r.status == "flagged" %}<span class="badge text-bg-warning">{{ r.label }}</span>
+                  {% else %}<span class="badge text-bg-danger">{{ r.label }}</span>{% endif %}
+                </td>
+                <td dir="ltr">{{ r.checked }}</td>
+                <td dir="ltr">{{ r.exceptions }}</td>
+              </tr>
+              {% empty %}<tr><td colspan="4" class="text-center text-muted">لا نتائج.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}<p class="text-muted small mb-0">لا توجد جولات بعد — شغّل اختبارًا من
+          <a href="{% url 'audit:runs_list' %}">الجولات</a>.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س8: الاستثناءات -->
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>8. ما الاستثناءات؟</strong>
+        <span class="text-muted small">— الأحدث أولًا · افتح للانتقال إلى الاستثناء ← المصدر ← الاختبار</span></div>
+      <div class="card-body">
+        {% if recent_exceptions %}
+        <div class="table-responsive">
+          <table class="table table-sm small align-middle mb-0">
+            <thead class="table-light"><tr>
+              <th>الاختبار</th><th>الاستثناء</th><th>Risk</th><th>Status</th><th>المبلغ</th></tr></thead>
+            <tbody>
+              {% for e in recent_exceptions %}
+              <tr>
+                <td dir="ltr">{{ e.test_code }}</td>
+                <td><a href="{% url 'audit:exception_detail' e.pk %}">{{ e.title|truncatechars:60 }}</a></td>
+                <td>
+                  {% if e.risk_level == "High" %}<span class="badge text-bg-danger">High</span>
+                  {% elif e.risk_level == "Medium" %}<span class="badge text-bg-warning">Medium</span>
+                  {% else %}<span class="badge text-bg-secondary">Low</span>{% endif %}
+                </td>
+                <td>{{ e.status }}</td>
+                <td dir="ltr">{{ e.amount|floatformat:2 }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <a class="btn btn-sm btn-outline-primary mt-2" href="{% url 'audit:exceptions_list' %}">سجل الاستثناءات الكامل ←</a>
+        {% else %}<p class="text-muted small mb-0">لا استثناءات ضمن الفلاتر الحالية.</p>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================== س5: تفصيل خارج الموازنة -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white"><strong>5. تفصيل المصروفات خارج الموازنة</strong>
+        <span class="text-muted small">— مصروفات لا توجد تركيبة (إدارة × حساب) في أي سطر موازنة معتمد</span></div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm small mb-0">
+            <thead class="table-light"><tr>
+              <th>رقم المصروف</th><th>التاريخ</th><th>الإدارة</th><th>الحساب</th><th>المبلغ</th></tr></thead>
+            <tbody>
+              {% for r in oob_rows %}
+              <tr>
+                <td dir="ltr">{{ r.expense_number }}</td>
+                <td dir="ltr">{{ r.date }}</td>
+                <td>{{ r.department }}</td>
+                <td>{{ r.account }}</td>
+                <td dir="ltr">{{ r.amount|floatformat:2 }}</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="text-center text-muted">لا مصروفات خارج الموازنة ضمن الفلاتر الحالية ✓</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if kpis.oob_count > 10 %}
+        <div class="small text-muted mt-1">يُعرض أول10 من {{ kpis.oob_count }}.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ charts|json_script:"dash-charts" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const data = JSON.parse(document.getElementById("dash-charts").textContent);
+  const rtl = { rtl: true, textDirection: "rtl" };
+  const grid = { color: "rgba(0,0,0,.07)" };
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: "bottom", ...rtl },
+               tooltip: { intersect: false, mode: "index" } },
+  };
+  const money = (v) => new Intl.NumberFormat("en-US").format(v);
+
+  new Chart(document.getElementById("chart-monthly"), {
+    type: "line",
+    data: {
+      labels: data.monthly.labels,
+      datasets: [
+        { label: "الموازنة الشهرية", data: data.monthly.budget,
+          borderColor: "#0d6efd", backgroundColor: "rgba(13,110,253,.15)",
+          fill: true, tension: .25 },
+        { label: "التنفيذ الفعلي", data: data.monthly.actual,
+          borderColor: "#dc3545", backgroundColor: "rgba(220,53,69,.15)",
+          fill: true, tension: .25 },
+      ],
+    },
+    options: { ...common,
+      scales: { y: { beginAtZero: true, ticks: { callback: money }, grid },
+                x: { grid } } },
+  });
+
+  new Chart(document.getElementById("chart-departments"), {
+    type: "bar",
+    data: {
+      labels: data.departments.labels,
+      datasets: [
+        { label: "الموازنة", data: data.departments.budget,
+          backgroundColor: "#0d6efd" },
+        { label: "التنفيذ", data: data.departments.actual,
+          backgroundColor: "#dc3545" },
+      ],
+    },
+    options: { ...common,
+      scales: { y: { beginAtZero: true, ticks: { callback: money }, grid },
+                x: { grid } } },
+  });
+
+  new Chart(document.getElementById("chart-accounts"), {
+    type: "bar",
+    data: {
+      labels: data.accounts.labels,
+      datasets: [{ label: "التنفيذ الفعلي", data: data.accounts.total,
+                   backgroundColor: "#198754" }],
+    },
+    options: { ...common, indexAxis: "y",
+      plugins: { ...common.plugins,
+        legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { callback: money }, grid },
+                y: { grid } } },
+  });
+
+  new Chart(document.getElementById("chart-risk"), {
+    type: "doughnut",
+    data: {
+      labels: data.risk.labels,
+      datasets: [{ data: data.risk.data,
+                   backgroundColor: ["#dc3545", "#ffc107", "#6c757d"] }],
+    },
+    options: { ...common,
+      plugins: { legend: { position: "bottom", ...rtl },
+                 tooltip: { mode: "nearest" } } },
+  });
+
+  const resultsCanvas = document.getElementById("chart-results");
+  if (resultsCanvas) {
+    new Chart(resultsCanvas, {
+      type: "doughnut",
+      data: {
+        labels: data.test_results.labels,
+        datasets: [{ data: data.test_results.data,
+                     backgroundColor: ["#198754", "#ffc107", "#dc3545"] }],
+      },
+      options: { ...common,
+        plugins: { legend: { position: "bottom", ...rtl },
+                   tooltip: { mode: "nearest" } } },
+    });
+  }
+})();
+</script>
+{% endblock %}

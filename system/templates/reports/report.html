@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load perms report_tags %}
+{% block title %}{{ report.title_ar }}{% endblock %}
+{% block content %}
+{% perm user "reports.generate" as can_generate %}
+
+<!-- رأس يظهر فقط عند الطباعة (Print CSS) -->
+<div class="print-only print-header">
+  <div class="fw-bold">{{ report.title_ar }} — {{ report.title }}</div>
+  <div class="small">
+    النظام: {{ SYSTEM_NAME_AR }} · المُعدّ: {{ request.user.username }} ·
+    التاريخ: {{ generated_at|date:"Y-m-d H:i" }} ·
+    الفترة: {{ window.from|default:"—" }} → {{ window.to|default:"—" }} ·
+    الفلاتر:
+    {% for af in active_filters %}{{ af.label }}={{ af.value }}{% if not forloop.last %} · {% endif %}
+    {% empty %}الكل{% endfor %} ·
+    عدد السطور: {{ row_count }} · Synthetic Training Data
+  </div>
+</div>
+
+<nav aria-label="breadcrumb" class="small mb-2 no-print">
+  <a href="{% url 'reports:list' %}">التقارير</a> ←
+  <span>{{ report.title_ar }}</span>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2 no-print">
+  <div>
+    <h1 class="h4 mb-0">{{ report.title_ar }} <span class="text-muted small" dir="ltr">({{ report.title }})</span></h1>
+    <div class="text-muted small">{{ report.description }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">🖨 Print / PDF</button>
+    {% if can_generate %}
+    <a class="btn btn-outline-success btn-sm" href="{% url 'reports:export' report.slug 'csv' %}">⬇ CSV</a>
+    <a class="btn btn-outline-success btn-sm" href="{% url 'reports:export' report.slug 'xlsx' %}">⬇ XLSX</a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ================================================== الفلاتر -->
+<div class="card border-0 shadow-sm mb-3 no-print">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      {% if "period" in allowed_filters %}
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1">الفترة (Period)</label>
+        <select name="period" class="form-select form-select-sm">
+          <option value="">السنة كاملة</option>
+          {% for p in filter_options.periods %}
+          <option value="{{ p.id }}" {% if filters.period == p.id %}selected{% endif %}>{{ p.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if "department" in allowed_filters %}
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1">الإدارة</label>
+        <select name="department" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for d in filter_options.departments %}
+          <option value="{{ d.id }}" {% if filters.department == d.id %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if "account" in allowed_filters %}
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1">الحساب</label>
+        <select name="account" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for a in filter_options.accounts %}
+          <option value="{{ a.id }}" {% if filters.account == a.id %}selected{% endif %}>{{ a.code }} — {{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if "category" in allowed_filters %}
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1">التصنيف</label>
+        <select name="category" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for c in filter_options.categories %}
+          <option value="{{ c.id }}" {% if filters.category == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if "risk" in allowed_filters %}
+      <div class="col-md-1 col-6">
+        <label class="form-label small mb-1">Risk</label>
+        <select name="risk" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for r in filter_options.risks %}
+          <option value="{{ r }}" {% if filters.risk == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% if "test" in allowed_filters %}
+      <div class="col-md-2 col-6">
+        <label class="form-label small mb-1">الاختبار</label>
+        <select name="test" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for t in filter_options.tests %}
+          <option value="{{ t.test_code }}" {% if filters.test == t.test_code %}selected{% endif %}>{{ t.test_code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-md-1 col-6 d-flex gap-1">
+        <button class="btn btn-primary btn-sm flex-grow-1">تطبيق</button>
+        <a class="btn btn-outline-secondary btn-sm" href="{% url 'reports:detail' report.slug %}" title="إعادة تعيين">↺</a>
+      </div>
+    </form>
+    <div class="small text-muted mt-1">
+      نافذة التقرير: <span dir="ltr">{{ window.from|default:"—" }} → {{ window.to|default:"—" }}</span>
+      {% if active_filters %} · فلاتر مفعّلة:
+      {% for af in active_filters %}<span class="badge text-bg-light border">{{ af.label }}: {{ af.value }}</span> {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- ================================================== الملخص -->
+<div class="row g-2 mb-3">
+  {% for s in summary %}
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body py-2">
+        <div class="small text-muted">{{ s.label }}</div>
+        <div class="fw-bold" dir="ltr">{{ s.value }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ================================================== الجدول -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between">
+    <strong>الجدول</strong>
+    <span class="small text-muted">{{ row_count }} سطر · تحديث حي من PostgreSQL</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-striped align-middle mb-0 small report-table">
+      <thead class="table-light">
+        <tr>
+          {% for c in columns %}<th>{{ c.label }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          {% for c in columns %}{% with cell=row|cell:c.key %}
+          <td>
+            {% if cell.url %}
+            <a href="{{ cell.url }}" dir="ltr">{{ cell.d }}</a>
+            {% else %}{{ cell.d }}{% endif %}
+          </td>
+          {% endwith %}{% endfor %}
+        </tr>
+        {% empty %}
+        <tr><td colspan="{{ columns|length }}" class="text-center text-muted py-3">لا سطور مطابقة للفلاتر الحالية.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

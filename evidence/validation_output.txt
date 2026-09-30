@@ -1,0 +1,44 @@
+PHASE 4 — Audit tests executed (14 tests, approved criteria)
+
+Test       Type                              Rows
+T-BUD-01   Annual Overrun                      16
+T-BUD-02   Out of Budget                        7
+T-BUD-03   Unusual Monthly Variance            23
+T-EXP-01   Missing Supporting Document         22
+T-EXP-01   Partial Supporting Document         20
+T-EXP-02   Large Cash Payment                   6
+T-EXP-02   Unapproved Payment                  14
+T-EXP-03   Possible Duplicate Payment           5
+T-EXP-04   Unusual Amount                      13
+T-EXP-05   Suspicious Classification            5
+T-EXP-06   Purchase without PO                 20
+T-PROC-01  Insufficient Quotations             51
+T-PROC-02  Missing PO                           8
+T-PROC-02  Missing Receiving Evidence          16
+T-PROC-03  Incomplete Approval                 12
+T-PROC-04  Inactive Supplier                   13
+T-PROC-05  High-Value Low Competition          13
+
+TOTAL                                         264
+
+Risk distribution:
+  High      61 exceptions | amount under review $975,140
+  Medium   135 exceptions | amount under review $531,914
+  Low       68 exceptions | amount under review $77,349
+  ALL      264 exceptions | $1,584,404
+
+Ground-truth validation (planted scenarios):
+  [PASS] out-of-budget txns = 7 — found 7
+  [PASS] duplicate pairs = 5 — found 5
+  [PASS] suspicious classification = 5 — found 5
+  [PASS] large cash = 6 — found 6
+  [PASS] unusual amounts in [10,16] (>=8 planted) — found 13
+  [PASS] purchase-without-PO in [15,25] (>=6 planted) — found 20
+  [PASS] inactive-supplier proc = 13 — found 13
+  [PASS] all three risk levels present — levels: ['High', 'Low', 'Medium']
+  [PASS] register non-empty & every row traceable — 264 rows
+
+written: output/exception_register.csv (264 rows)
+written: output/audit_tests.csv (14 rows)
+
+ALL CHECKS PASSED

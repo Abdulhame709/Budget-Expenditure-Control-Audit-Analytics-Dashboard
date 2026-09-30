@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}{{ version }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <nav aria-label="breadcrumb"><ol class="breadcrumb small mb-1">
+      <li class="breadcrumb-item"><a href="{% url 'budget:budget_list' %}">الموازنة</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'budget:budget_detail' budget.pk %}">{{ budget }}</a></li>
+      <li class="breadcrumb-item active" dir="ltr">v{{ version.version }}</li>
+    </ol></nav>
+    <h1 class="h4 mb-0" dir="ltr">v{{ version.version }} — {{ budget.name }}</h1>
+    <div>
+      <span class="badge {% if version.status == 'approved' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+        {{ version.get_status_display }}</span>
+      {% if is_analysis %}<span class="badge text-bg-primary">النسخة المستخدمة في التحليل</span>{% endif %}
+      {% if locked %}<span class="badge text-bg-warning">مُقفلة للتعديل</span>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-info" href="{{ summary_url }}">ملخص من DB</a>
+    {% if can_edit %}
+      {% if version.status == 'draft' %}
+      <form method="post" action="{{ approve_url }}" class="d-inline"
+            onsubmit="return confirm('اعتماد هذه النسخة؟ ستُقفل للتعديل وتصبح أساس التحليل.');">
+        {% csrf_token %}
+        <button class="btn btn-success" type="submit">اعتماد النسخة</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ unapprove_url }}" class="d-inline"
+            onsubmit="return confirm('إلغاء الاعتماد؟ عودة المسودة للتعديل.');">
+        {% csrf_token %}
+        <button class="btn btn-warning" type="submit">إلغاء الاعتماد</button>
+      </form>
+      {% endif %}
+      <a class="btn btn-outline-primary" href="{{ edit_notes_url }}">ملاحظات</a>
+      {% if not locked %}
+      <a class="btn btn-primary" href="{{ line_create_url }}">+ سطر ميزانية</a>
+      {% endif %}
+      <form method="post" action="{{ new_revision_url }}" class="d-inline"
+            onsubmit="return confirm('إنشاء نسخة مراجعة جديدة بنسخ هذا السطور؟');">
+        {% csrf_token %}
+        <button class="btn btn-outline-secondary" type="submit">نسخة مراجعة</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if locked %}
+<div class="alert alert-warning small py-2">
+  النسخة معتمدة ({{ version.approved_by|default:"—" }} ·
+  {{ version.approved_at|date:"Y-m-d H:i" }}) — السطور مُقفلة. للتعديل: أنشئ
+  <strong>نسخة مراجعة</strong> ثم اعتمد الجديدة.
+</div>
+{% endif %}
+
+<div class="row g-2 mb-3">
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm"><div class="card-body py-2">
+      <div class="text-muted small">الإجمالي السنوي (SUM من DB)</div>
+      <div class="fs-5 fw-bold font-monospace" dir="ltr">{{ totals.annual_total }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm"><div class="card-body py-2">
+      <div class="text-muted small">عدد سطور الميزانية</div>
+      <div class="fs-5 fw-bold">{{ totals.line_count }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm"><div class="card-body py-2">
+      <div class="text-muted small">أول 6 أشهر (من DB)</div>
+      <div class="small font-monospace" dir="ltr">
+        {% for m in totals.monthly|slice:":6" %}{{ m }}{% if not forloop.last %} · {% endif %}{% endfor %}
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white fw-bold">سطور الميزانية (12 شهرًا + السنوية)</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0" style="min-width:1200px">
+      <thead class="table-light">
+        <tr>
+          <th>الإدارة</th><th>الحساب</th><th>التصنيف</th>
+          {% for i in "123456789"|make_list %}<th class="text-center">ش{{ i }}</th>{% endfor %}
+          <th class="text-center">ش10</th><th class="text-center">ش11</th><th class="text-center">ش12</th>
+          <th class="text-end">السنوية</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in lines %}
+        <tr>
+          <td class="text-nowrap">{{ line.department.code }}</td>
+          <td class="text-nowrap"><span dir="ltr">{{ line.account.code }}</span> {{ line.account.name }}</td>
+          <td class="small">{{ line.expense_category|default:"—" }}</td>
+          <td class="text-center small font-monospace">{{ line.m01 }}</td>
+          <td class="text-center small font-monospace">{{ line.m02 }}</td>
+          <td class="text-center small font-monospace">{{ line.m03 }}</td>
+          <td class="text-center small font-monospace">{{ line.m04 }}</td>
+          <td class="text-center small font-monospace">{{ line.m05 }}</td>
+          <td class="text-center small font-monospace">{{ line.m06 }}</td>
+          <td class="text-center small font-monospace">{{ line.m07 }}</td>
+          <td class="text-center small font-monospace">{{ line.m08 }}</td>
+          <td class="text-center small font-monospace">{{ line.m09 }}</td>
+          <td class="text-center small font-monospace">{{ line.m10 }}</td>
+          <td class="text-center small font-monospace">{{ line.m11 }}</td>
+          <td class="text-center small font-monospace">{{ line.m12 }}</td>
+          <td class="text-end font-monospace fw-bold" dir="ltr">{{ line.annual_amount }}</td>
+          <td class="text-end text-nowrap">
+            {% if can_edit and not locked %}
+            <a class="btn btn-sm btn-outline-primary"
+               href="{% url 'budget:line_edit' line.pk %}">تعديل</a>
+            <form method="post" action="{% url 'budget:line_delete' line.pk %}"
+                  class="d-inline"
+                  onsubmit="return confirm('حذف السطر؟ يُسجَّل في سجل التدقيق.');">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline-danger" type="submit">حذف</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="17" class="text-center text-muted py-4">
+          لا سطور بعد — أدخل سطر الميزانية يدويًا.</td></tr>
+        {% endfor %}
+      </tbody>
+      {% if lines %}
+      <tfoot class="table-light fw-bold">
+        <tr>
+          <td colspan="3">الإجمالي (من DB)</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.0 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.1 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.2 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.3 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.4 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.5 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.6 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.7 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.8 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.9 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.10 }}</td>
+          <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.11 }}</td>
+          <td class="text-end font-monospace" dir="ltr">{{ totals.annual_total }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% if version.notes %}
+<div class="alert alert-light border small mt-3">{{ version.notes }}</div>
+{% endif %}
+{% endblock %}

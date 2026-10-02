@@ -1,7 +1,10 @@
 """Project-level views: home (system status) + error pages."""
 import django
+import json
+from pathlib import Path
 from django.db import connection
 from django.db.utils import OperationalError
+from django.http import JsonResponse
 from django.shortcuts import render
 
 
@@ -34,6 +37,11 @@ def home(request):
             "is_debug": __import__("django.conf", fromlist=["settings"]).settings.DEBUG,
         },
     )
+
+
+def route_manifest(request):
+    manifest_path = Path(__file__).resolve().parents[1] / "route_manifest.json"
+    return JsonResponse(json.loads(manifest_path.read_text(encoding="utf-8")))
 
 
 def page_not_found(request, exception=None):

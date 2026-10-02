@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ SYSTEM_NAME_AR }}{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{% static 'brand/auditdash-logo.png' %}">
   <link href="{% static 'vendor/bootstrap/css/bootstrap.rtl.min.css' %}" rel="stylesheet">
   <link href="{% static 'css/app.css' %}" rel="stylesheet">
 </head>
@@ -15,8 +16,8 @@
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
     <div class="container-fluid">
       <a class="navbar-brand fw-bold" href="{% url 'home' %}">
-        <span class="d-inline-block rounded-circle bg-white text-primary text-center"
-              style="width:26px;height:26px;line-height:26px;font-size:14px">رق</span>
+        <img src="{% static 'brand/auditdash-logo.png' %}" alt="" width="28" height="28"
+             class="rounded me-1 align-middle">
         {{ SYSTEM_NAME_AR }}
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"

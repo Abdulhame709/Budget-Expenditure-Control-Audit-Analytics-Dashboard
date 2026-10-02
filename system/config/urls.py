@@ -8,6 +8,7 @@ from config import views
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("manus-routes.json", views.route_manifest, name="route_manifest"),
     path("dashboard/", include("apps.analytics.urls")),
     path("reports/", include("apps.reports.urls")),
     path("admin/", admin.site.urls),

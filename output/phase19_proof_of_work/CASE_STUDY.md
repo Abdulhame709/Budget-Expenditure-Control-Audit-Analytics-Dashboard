@@ -8,4 +8,4 @@
 
 **Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, matching 28 Ground-Truth Control Exceptions with zero false positives against the predefined Ground-Truth test set across high, medium, and low risk tiers. The full analytical output contains 264 exception rows/records, not 264 independent cases.
 
-**Evidence:** The codebase contains 334 passing automated tests, verified SHA-256 evidence artifacts, a documented Published Demo / Live Demonstration, and transparent synthetic training data.
+**Evidence:** The local PostgreSQL suite passes 353 automated tests and the published SHA-256 artifacts verify. The previously shared Manus demo page responded to a read-only check on 2026-10-02; its served revision/provider configuration were not verified, and this branch was not deployed. No production-readiness approval is claimed. Training data is synthetic.

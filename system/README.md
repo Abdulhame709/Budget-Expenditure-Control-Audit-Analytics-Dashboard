@@ -11,7 +11,7 @@ system/
 ├── manage.py               # نقطة التشغيل
 ├── requirements.txt        # Django · psycopg · dj-database-url · dotenv · whitenoise · gunicorn
 ├── .env / .env.example     # DATABASE_URL و إعدادات البيئة (لا يُرفع .env)
-├── config/                 # المشروع: settings (base/development/production) · urls · views · tests
+├── config/                 # المشروع: settings (base/development/staging/production) · urls · views · tests
 ├── apps/                   # 10 تطبيقات حسب Architecture المعتمدة:
 │   accounts  reference  budget  expenses  procurement
 │   imports   analytics  audit_register  reports  governance
@@ -33,7 +33,7 @@ bash scripts/setup_postgres.sh        # PostgreSQL محلي (انظر الملا
 .venv/bin/python manage.py test       # اختبارات الإثبات (PHASE 2)
 .venv/bin/python manage.py runserver 0.0.0.0:8000
 ```
-الإنتاج لاحقًا (PHASE 15): `DJANGO_SETTINGS_MODULE=config.settings.production gunicorn config.wsgi:application`
+التشغيل الإنتاجي يتطلب `config.settings.production`/`staging`، أسرارًا ومضيفين دقيقين، PostgreSQL TLS، ومراجعة مزوّد الاستضافة؛ لا توجد موافقة نشر في هذا السجل.
 
 ## ملاحظة بيئية (مُصرَّح بها — Blocker مُعالج)
 مستودعات apt وGitHub-CDN محجوبة في بيئة العمل هذه، لذا تُجهَّز PostgreSQL المحلية عبر
@@ -57,7 +57,7 @@ binariess **الحقيقية** المضمّنة في حزمة `pgserver` (PyPI) 
 - **اختبارات**: `manage.py test` → **27/27** (7 دخان PHASE 2 + 20 اختبار صلاحيات حقيقي
   بردود HTTP 302/403 — لا إخفاء أزرار).
 - مستخدمو عرض تجريبي (بيئة التطوير فقط، `is_demo=True`):
-  `admin` · `auditor` · `finance` · `mgr` — كلمة المرور: `Demo-Training-2026!`
+  `admin` · `auditor` · `finance` · `mgr` — كلمة المرور: `Demo-Training-2026!` (تطوير محلي فقط؛ الحسابات الموسومة Demo مرفوضة من مصادقة الإنتاج، ولا تُنسخ بيانات اعتمادها إلى الإنتاج).
 
 ## وحدات البيانات الأساسية (PHASE 4)
 - **6 وحدات CRUD** على `/reference/`: سنوات مالية · فترات شهرية · إدارات ·
@@ -435,6 +435,8 @@ RTL · Responsive · التنقل · المصطلحات · النماذج · ر�
 
 **النشر الخارجي (GitHub / Base44 / أي منصة) ممنوع حتى أمر صريح.**
 
+> **تصحيح 2026-10-02:** هذا وصف تاريخي لفحوص Phase 15، لا موافقة نشر. لا تُشغّل `load_training_dataset` في production؛ HSTS preload ينتظر مراجعة النطاق/الـTLS؛ وفحوص `check --deploy` السابقة لا تعني تحققًا من مزوّد الاستضافة. راجع PHASE 16 أدناه.
+
 ### فحوصات الإصدار (22 بندًا — التفصيل في `output/phase15_rc/RELEASE_CHECKLIST.md`)
 - **التكامل**: المجموعة **334/334 OK** · سلامة قاعدة البيانات (161 قيدًا، 77
   FK، صفر أيتام) · الصلاحيات (كتالوج 30 + مصفوفات 200/403/302) · الاستيراد ·
@@ -462,3 +464,96 @@ config.settings.production` · gunicorn خلف proxy يوفر TLS و`/media/` ·
 CDN خارجي محجوب في بيئة العمل (Bootstrap/Chart.js) · نصوص مرحلية قديمة
 (خطة UX F-01..F-18) · محفظة تحسينات UX (F-07..F-18) · لا فحص مرئي آلي
 (لا chromium) · الوسائط في الإنتاج تحتاج مسار proxy.
+
+## PHASE 16 — Production isolation and import/export hardening (2026-10-02)
+
+This is a staged engineering tranche, **not a deployment or production-readiness
+approval**. Existing workflows, RBAC codes, training rows and declared Ground
+Truth were retained; no real institution data is introduced.
+
+**Deployment model decision (2026-10-02):** one isolated installation per
+customer/organization; this is not a shared multi-tenant service. Reuse the same
+release across customers, but give each installation its own production
+secrets, PostgreSQL database/roles, domain, private persistent media, and backup
+and restore boundary. Do not copy one customer's records, credentials, or media
+into another installation. Organization-level database ownership fields are
+not in scope for this model.
+
+**Current-instance provider intent (owner, 2026-10-02):** Manus for the existing
+application copy and Supabase for its cloud PostgreSQL; the public Manus page
+responded to a read-only check, but the exact deployed revision, Supabase project,
+region, connection method, secret handling, backup policy, and provider settings
+have not been independently verified. The published Supabase region list checked
+on this date does not list a Middle East region; confirm the actual dashboard
+region and whether the requirement is data residency or only user proximity
+before loading any real organizational data. See
+https://supabase.com/docs/guides/platform/regions.
+
+### Implemented in code
+
+- Split base/development/staging/production settings. Production-like settings
+  fail closed on weak keys, wildcard/local hosts, missing/invalid PostgreSQL
+  configuration, an environment/module mismatch, invalid migration selector,
+  and disabled HTTPS redirect. TLS is required for PostgreSQL outside development;
+  HSTS preload remains gated until the real domain and proxy are verified.
+- Added the separate `MIGRATION_DATABASE_URL` opt-in for release migrations;
+  web workers continue to use the runtime `DATABASE_URL`. Production rejects
+  SQLite and any non-PostgreSQL engine.
+- Tagged loader-created demo accounts, blocked their authentication in
+  production (including Django admin), and prevented the synthetic-data loader
+  from running in production. Staging requires explicit opt-in and an isolated DB.
+- Added minimal `/health/live/` and token-gated `/health/ready/`; environment,
+  database, Django-version and route-manifest diagnostics are restricted to
+  development/authenticated contexts.
+- Added bounded import validation: extension/signature matching, upload-size,
+  row/column/PDF-page and XLSX expansion limits; SHA-256 duplicate detection
+  backed by a partial unique DB constraint; owner-scoped import jobs; row locks
+  around validation/confirmation/cancellation; and a commit-time recheck of
+  period-posting permission. Original uploaded files remain retained.
+- CSV/XLSX export strings beginning with formula syntax are neutralized while
+  numeric values remain numeric. Audit context/diffs are scrubbed recursively;
+  untrusted `X-Forwarded-For` is ignored in favor of transport `REMOTE_ADDR`.
+- Removed migration, training seeding and runtime static collection from the
+  Docker web command. Static files are collected at build; the Docker worker runs
+  unprivileged; migration is a separate release action. The Render blueprint has
+  auto-deploy disabled. These deployment definitions have not been tested on the
+  provider.
+
+### Local verification (2026-10-02)
+
+- `manage.py check`: clean; `makemigrations --check --dry-run`: no model drift;
+  migration `imports.0002` applied on a disposable local PostgreSQL instance.
+- Full local suite: **353/353 passed**. Existing Ground Truth data and expected
+  result sets were not edited.
+- Negative production-settings checks rejected wildcard hosts, weak keys,
+  SQLite, disabled HTTPS redirect, environment/settings-module mismatch,
+  invalid/missing migration selector and invalid HSTS preload. A valid sample was accepted;
+  a URL requesting `sslmode=disable` was forced to `sslmode=require`.
+- `check --deploy` exited successfully with the expected HSTS warning W004
+  (`SECURE_HSTS_SECONDS=0` pending domain/TLS review). A cold `collectstatic`
+  run copied 132 assets and post-processed 394; a later repeat found 132
+  unmodified and processed 366, with no failure.
+- Evidence checksum verification and `git diff --check` are reported at the end
+  of this tranche. None of these local checks replaces provider verification.
+
+### Still unverified / not completed
+
+- Repeat migrations and the unchanged Ground Truth suite on the selected managed
+  PostgreSQL provider; verify TLS, row-lock semantics, network/proxy trust and
+  host-specific configuration.
+- Current instance (Manus + Supabase): verify the served revision, secret/runtime
+  configuration, PostgreSQL connection mode/TLS, private persistent media, and
+  backup/restore. The current project region is not verified; the published
+  Supabase region list does not show a Middle East option.
+- Future customer copies may use other hosts, but each still needs its own app,
+  database/roles, secrets, domain, private media, and backup/restore path.
+  Per-user import privacy is not a substitute for these deployment boundaries.
+- Select and test persistent private media storage, malware scanning, retention,
+  backup and restore, and measured RPO/RTO. Current FileSystemStorage may be
+  local/ephemeral on hosted platforms.
+- Establish production administrator bootstrap and exact role policy. Existing
+  migration seeds for RBAC/catalog/test definitions were deliberately preserved;
+  the synthetic loader remains blocked in production.
+- Run `check --deploy` with the real host, trusted origins, HSTS decision and
+  proxy behavior. Do not infer readiness from unit tests alone.
+- No deployment, push, merge or provider-side action has been performed.

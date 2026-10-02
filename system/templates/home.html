@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}الرئيسية — {{ SYSTEM_NAME_AR }}{% endblock %}
 {% block content %}
+{% if show_environment_details %}
 <div class="row g-3 mb-4">
   <div class="col-12">
     <h1 class="h3 mb-1">{{ SYSTEM_NAME_AR }}</h1>
@@ -60,6 +61,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <div class="card mt-4 border-0 shadow-sm">
   <div class="card-body">
@@ -69,7 +71,7 @@
         <p class="text-muted small mb-0">نظام تدقيق مالي ورقابي متكامل يعتمد على 14 فاحصاً آلياً لاكتشاف التجاوزات والانحرافات وتقييم المخاطر.</p>
       </div>
       <div>
-        <span class="badge text-bg-success px-3 py-2">النظام مكتمل وجاهز للتشغيل</span>
+        <span class="badge text-bg-secondary px-3 py-2">منظومة تدريبية — التأهيل الإنتاجي قيد التحقق</span>
       </div>
     </div>
 

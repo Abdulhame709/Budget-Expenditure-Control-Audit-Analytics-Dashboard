@@ -21,7 +21,7 @@
 
 نظام داخلي (Internal Use) لمراقبة الموازنة مقابل التنفيذ (Budget vs Actual)، وتدقيق المصروفات والمشتريات، واكتشاف الاستثناءات وتصنيف المخاطر — بواجهة عربية RTL كاملة، ومحرك تدقيق من 14 اختبارًا آليًا، وتقارير قابلة للطباعة والتصدير.
 
-**الحالة**: Release Candidate (RC) · Published Demo / Live Demonstration · **المجموعة**: 334 اختبارًا آليًا ✅ (281 وحدة/تكامل + 53 ground-truth) · Django 5.2 LTS · PostgreSQL 16 حصريًا (لا SQLite).
+**الحالة**: تأهيل إنتاجي مرحلي — لا نشر لهذا الفرع معتمد بعد · صفحة Demo على Manus استجابت لفحص قراءة في 2026-10-02، لكن نسخة الشيفرة المنشورة غير مطابقة/غير متحققة · **المجموعة المحلية**: 353 اختبارًا آليًا ✅ · Django 5.2 · PostgreSQL حصريًا (لا SQLite). اجتياز الاختبارات أو وصول رابط العرض لا يثبت جاهزية مزوّد الاستضافة أو النطاق أو النسخ والاستعادة.
 
 ---
 
@@ -35,7 +35,7 @@
 >
 > **Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, matching 28 Ground-Truth Control Exceptions with zero false positives against the predefined Ground-Truth test set across high, medium, and low risk tiers. The full analytical output contains 264 exception rows/records; these are not 264 independent cases.
 >
-> **Evidence:** The codebase contains 334 passing automated tests, verified SHA-256 evidence artifacts, a documented Published Demo / Live Demonstration, and transparent synthetic training data.
+> **Evidence:** The local PostgreSQL suite passes 353 automated tests and the published evidence hashes verify. The previously shared Manus demo page responded to a read-only check on 2026-10-02; this branch was not deployed, and provider configuration/production readiness were not verified. All training data remains synthetic.
 
 *المستندات الكاملة لحزمة الـ Proof-of-Work متوفرة في المجلد [`output/phase19_proof_of_work/`](output/phase19_proof_of_work/):*
 - [`PROJECT_PROOF.md`](output/phase19_proof_of_work/PROJECT_PROOF.md) — وثيقة إثبات المشروع (Problem · Owner · Solution · Role · Tools · Evidence · Impact · Link)
@@ -129,10 +129,10 @@ PostgreSQL (حصري · D-01)  ← production: WhiteNoise · DEBUG=False · fail
 > كل الأوامر داخل `system/`.
 
 ```bash
-python3.11 -m venv .venv && source .venv/bin/activate
+python3.11 -m venv ../.venv && source ../.venv/bin/activate
 pip install -r requirements.txt        # Django 5.2 · psycopg3 · whitenoise · pgserver · pandas …
 cp .env.example .env                   # ثم عدّل DATABASE_URL
-python -c "import secrets; print(secrets.token_urlsafe(50))"   # مولّد SECRET_KEY
+python -c "import secrets; print(secrets.token_urlsafe(50))"   # مفتاح تطوير عشوائي عند الحاجة
 ```
 
 ## How to configure PostgreSQL
@@ -148,51 +148,82 @@ python -c "import secrets; print(secrets.token_urlsafe(50))"   # مولّد SECR
 #   DATABASE_URL=postgresql://postgres:@/audit_budget_system?host=$PWD/.pgsql
 ```
 
-## Migration & How to load training data
+## Migration & Synthetic training data
 
 ```bash
-python manage.py migrate                            # 0 معلَّق · لا انحراف
-python manage.py load_training_dataset              # idempotent — آمن للتكرار
-python manage.py createsuperuser
-# بعد التحميل: admin / auditor / finance / management — Demo-Training-2026!
-#               ds_* — Dataset-Training-2026!
-# المحتوى: 43 مصروف · 9 مشتريات · 18 عرضًا → 28 استثناء متوقع + 42 مرفقًا
+python manage.py migrate                            # Development/staging migration
+python manage.py load_training_dataset              # Development only by default
+python manage.py createsuperuser                    # Named operator; never reuse demo credentials
 ```
+
+- The loader is idempotent in development; staging requires an isolated database
+  plus `DJANGO_ALLOW_SYNTHETIC_DATASET=true`; production always rejects it.
+- Seeded `admin`/`ds_*` credentials are for local training only and cannot
+  authenticate in production. Do not copy them to a hosted environment.
+- Ground Truth and its expected results are retained unchanged: 43 expenses ·
+  9 procurements · 18 quotations → the declared audit exceptions.
 
 ## How to run tests
 
 ```bash
-python manage.py check                  # نظيف
-python manage.py test                   # 334/334 (~2 دقيقة)
-python manage.py test apps.audit_register.tests_dataset   # ground-truth فقط (53)
+python manage.py check                  # Django checks
+python manage.py makemigrations --check --dry-run
+python manage.py migrate --check
+python manage.py test                   # local PostgreSQL: 353/353
 ```
 
 ## Import workflow
 
-1. من الواجهة: **إدارة النظام → رفع ملف** (Excel/CSV · ≤10MB · UTF-8 · أعمدة موثقة).
+1. من الواجهة: **إدارة النظام → رفع ملف** (Excel/CSV/PDF · ≤10MB، مع حد للصفوف/الأعمدة/صفحات PDF وتوسّع XLSX).
 2. القالب النموذجي يُصدَّر من نفس الشاشة.
 3. رفع → **معاينة** → تحقق (أخطاء/حجب) → تأكيد → تسجيل في سجل التدقيق.
 4. PDF: قراءة/استخراج فقط عبر pipeline موحّد — **لا كتابة مباشرة في قاعدة البيانات**.
 
-## Deployment prerequisites
+## Production qualification (not deployment approval)
+
+**Deployment model:** one isolated application installation per customer; this
+is not a shared multi-tenant service. Reuse the same release, but provision a
+separate app instance, PostgreSQL database/roles, secrets, domain, private media
+storage, and backup/restore boundary for each customer. Never copy one
+customer's records or credentials into another installation.
+
+Before any production use, provision and verify the chosen host, exact DNS name,
+TLS-terminating proxy, and managed PostgreSQL database. Values below are
+placeholders, not credentials; keep secrets in the provider secret manager, not
+in Git or public logs.
 
 ```bash
-export DJANGO_SETTINGS_MODULE=config.settings.production   # fail-fast عند أي نقص
+export DJANGO_SETTINGS_MODULE=config.settings.production
+export DJANGO_ENV=production
 export DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(50))')"
 export DJANGO_ALLOWED_HOSTS=audit.example.org
+export DATABASE_URL='postgresql://runtime_user:<secret>@db.example.org/audit_budget_system'
+export MIGRATION_DATABASE_URL='postgresql://migration_user:<secret>@db.example.org/audit_budget_system'
 export DJANGO_SECURE_SSL_REDIRECT=true
-export DJANGO_SECURE_HSTS_SECONDS=31536000
-export DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS=true
-export DJANGO_SECURE_HSTS_PRELOAD=true
-# + DATABASE_URL (PostgreSQL إنتاجي) · DJANGO_CSRF_TRUSTED_ORIGINS عند تباين النطاق
-python manage.py check --deploy          # = 0 issues مع الأعلام أعلاه
+export DJANGO_SECURE_HSTS_SECONDS=0                 # raise only after domain/TLS review
+python manage.py check --deploy
 python manage.py collectstatic --noinput
-gunicorn config.wsgi:application         # خلف proxy يوفّر TLS و /media/
+DJANGO_USE_MIGRATION_DATABASE=true python manage.py migrate --noinput
+python manage.py createsuperuser
 ```
 
-- WhiteNoise يقدّم `/static/` · `/media/` عبر مسار proxy · فشل مبكر: SECRET_KEY ضعيف · ALLOWED_HOSTS فارغ · DATABASE_URL ناقص.
-- بوابة النشر الكاملة (22 بندًا): `output/phase15_rc/RELEASE_CHECKLIST.md`.
-- النسخ الاحتياطي: `pg_dump -Fc` + `media/` + ضمان `.env` بقناة منفصلة.
+- `DATABASE_URL` is the web/runtime connection; only a one-off release command
+  may opt into the separately provisioned `MIGRATION_DATABASE_URL`.
+- Do not run `load_training_dataset` in production. Demo accounts/data remain
+  development-only; a staging seed needs an isolated DB and explicit opt-in.
+- `check --deploy` currently reports W004 because `SECURE_HSTS_SECONDS=0` is
+  intentional pending verification of the actual domain, HTTPS redirect and
+  proxy. HSTS preload is disabled. A local check is not provider verification.
+- The container collects static files at build and runs its web worker as a
+  non-root user. Migrations are a separate release action; no dataset is seeded
+  at startup. The Render blueprint disables automatic deploy and has not been
+  provider-tested.
+- `FileSystemStorage` for uploaded media may be ephemeral. Select and test
+  private persistent storage, malware scanning, retention, backup and restore,
+  and measured RPO/RTO before operational use.
+- No deployment, push or merge has been performed. See the phase checklist at
+  [`output/phase15_rc/RELEASE_CHECKLIST.md`](output/phase15_rc/RELEASE_CHECKLIST.md)
+  and the Phase 16 engineering record in `system/README.md`.
 
 ## Proof / Evidence
 

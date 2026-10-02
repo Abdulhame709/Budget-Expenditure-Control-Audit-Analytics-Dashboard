@@ -341,6 +341,34 @@ class ExportTests(ReportFixture):
                                               values_only=True)]
         self.assertTrue(all(isinstance(v, (int, float)) for v in amounts))
 
+    def test_csv_formula_text_is_neutralized(self):
+        exception = AuditException.objects.order_by("pk").first()
+        self.assertIsNotNone(exception)
+        exception.title = '=HYPERLINK("https://invalid")'
+        exception.save(update_fields=["title"])
+        response = self.as_("aud_p12").get(
+            reverse("reports:export", args=["exception-register", "csv"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("'=HYPERLINK", response.content.decode("utf-8-sig"))
+
+    def test_xlsx_formula_text_is_stored_as_text(self):
+        exception = AuditException.objects.order_by("pk").first()
+        self.assertIsNotNone(exception)
+        exception.title = '=HYPERLINK("https://invalid")'
+        exception.save(update_fields=["title"])
+        response = self.as_("aud_p12").get(
+            reverse("reports:export", args=["exception-register", "xlsx"]))
+        from openpyxl import load_workbook
+
+        ws = load_workbook(io.BytesIO(response.content), data_only=False).active
+        formula_like = [
+            cell for row in ws.iter_rows() for cell in row
+            if isinstance(cell.value, str) and "HYPERLINK" in cell.value
+        ]
+        self.assertEqual(len(formula_like), 1)
+        self.assertTrue(formula_like[0].value.startswith("'=HYPERLINK"))
+        self.assertNotEqual(formula_like[0].data_type, "f")
+
     def test_export_unknown_slug_400(self):
         c = self.as_("aud_p12")
         response = c.get(

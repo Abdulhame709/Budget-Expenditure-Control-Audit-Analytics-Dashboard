@@ -8,6 +8,7 @@ from django.shortcuts import render
 
 from apps.accounts.permissions import require_permission
 from apps.governance.services import log_action
+from config.csv_safety import safe_spreadsheet_value
 from apps.reports.builders import REPORTS, parse_filters, resolve_window
 
 FILTER_LABELS = {
@@ -122,8 +123,7 @@ def report_detail(request, slug):
 
 
 def _cell_value(cell):
-    value = cell.get("v", "")
-    return value
+    return safe_spreadsheet_value(cell.get("v", ""))
 
 
 @require_permission("reports.generate")
@@ -147,7 +147,10 @@ def report_export(request, slug, fmt):
         writer.writerow([])
         writer.writerow(["الملخص"])
         for item in summary:
-            writer.writerow([item["label"], item["value"]])
+            writer.writerow([
+                safe_spreadsheet_value(item["label"]),
+                safe_spreadsheet_value(item["value"]),
+            ])
         data = buf.getvalue().encode("utf-8-sig")  # BOM لفتح Excel بالعربية
         response = HttpResponse(data, content_type="text/csv; charset=utf-8")
     else:
@@ -165,7 +168,10 @@ def report_export(request, slug, fmt):
         ws.append([])
         ws.append(["الملخص"])
         for item in summary:
-            ws.append([item["label"], item["value"]])
+            ws.append([
+                safe_spreadsheet_value(item["label"]),
+                safe_spreadsheet_value(item["value"]),
+            ])
         out = io.BytesIO()
         wb.save(out)
         response = HttpResponse(

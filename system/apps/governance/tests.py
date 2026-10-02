@@ -5,7 +5,7 @@ from decimal import Decimal as D
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import Role, UserRole
@@ -15,6 +15,7 @@ from apps.audit_register.models import AuditException, AuditTest
 from apps.expenses.models import Expense
 from apps.procurement.models import Procurement
 from apps.governance.models import AuditLog, Attachment
+from apps.governance.services import log_action
 from apps.reference.models import (
     Account,
     Department,
@@ -397,3 +398,21 @@ class TraceabilityTests(GovFixture):
                          "attachments.view")
         self.assertEqual(URL_PERMISSIONS["governance:attachment_download"],
                          "attachments.view")
+
+
+class AuditScrubbingRegressionTests(TestCase):
+    def test_recursive_secret_scrub_and_untrusted_forwarded_ip(self):
+        request = RequestFactory().get(
+            "/", REMOTE_ADDR="192.0.2.17",
+            HTTP_X_FORWARDED_FOR="203.0.113.99, 192.0.2.1")
+        entry = log_action(
+            action="security_regression_check",
+            entity_type="test",
+            entity_id="1",
+            diff={"safe": "kept", "nested": {"api_token": "hidden", "n": 1}},
+            request=request,
+            extra_context={"details": {"secret": "hidden", "label": "kept"}},
+        )
+        self.assertEqual(entry.context["ip"], "192.0.2.17")
+        self.assertEqual(entry.diff, {"safe": "kept", "nested": {"n": 1}})
+        self.assertEqual(entry.context["details"], {"label": "kept"})

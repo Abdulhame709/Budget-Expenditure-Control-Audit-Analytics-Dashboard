@@ -8,7 +8,8 @@ from datetime import date
 from decimal import Decimal as D
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import IntegrityError, transaction
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -218,6 +219,18 @@ class ExtractTests(BaseFixture):
         self.assertFalse(form.is_valid())
         self.assertIn("يتجاوز الحد الأقصى",
                       str(form.errors["source_file"]))
+
+    def test_file_extension_must_match_binary_signature(self):
+        from apps.imports.forms import ImportUploadForm
+
+        for name, content in (("not.pdf", b"not a PDF"),
+                              ("not.xlsx", b"not a zip archive")):
+            form = ImportUploadForm(
+                data={"target": "expenses"},
+                files={"source_file": SimpleUploadedFile(name, content)},
+            )
+            self.assertFalse(form.is_valid(), name)
+            self.assertIn("محتوى الملف", str(form.errors["source_file"]))
 
 
 # ================================================================ mapping
@@ -529,6 +542,28 @@ class ImportHttpTests(BaseFixture):
         response = self._c(self.finance).get(reverse("imports:list"))
         self.assertContains(response, "shown.csv")
 
+    def test_reuploading_identical_content_creates_no_second_job(self):
+        c = self._c(self.finance)
+        content = (CSV_HEAD + CSV_ROWS).encode("utf-8")
+        self.assertEqual(self._post_upload(c, "same.csv", content).status_code, 302)
+        duplicate = self._post_upload(c, "renamed.csv", content)
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertContains(duplicate, "سبق رفع ملف مطابق")
+        self.assertEqual(ImportJob.objects.count(), 1)
+
+    def test_import_jobs_are_private_to_owner_or_user_manager(self):
+        job = self.extract("private.csv", (CSV_HEAD + CSV_ROWS).encode("utf-8"),
+                           user=self.finance)
+        other_finance = make_user("other_finance_private", "finance")
+        client = self._c(other_finance)
+        self.assertEqual(client.get(reverse("imports:detail", args=[job.pk])).status_code, 404)
+        self.assertEqual(client.get(reverse("imports:file", args=[job.pk])).status_code, 404)
+        listing = client.get(reverse("imports:list"))
+        self.assertEqual(listing.status_code, 200)
+        self.assertNotContains(listing, "private.csv")
+        self.assertEqual(self._c(self.admin).get(
+            reverse("imports:detail", args=[job.pk])).status_code, 200)
+
 
 # ================================================================ catalog
 class CatalogInvariantTests(TestCase):
@@ -547,3 +582,28 @@ class CatalogInvariantTests(TestCase):
         }
         for name, code in expect.items():
             self.assertEqual(URL_PERMISSIONS[name], code)
+
+
+@override_settings(MEDIA_ROOT=TEMP_MEDIA)
+class ImportSafetyRegressionTests(BaseFixture):
+    def test_partial_unique_source_fingerprint_constraint(self):
+        first = self.make_job("first.csv", b"same bytes")
+        first.source_sha256 = "a" * 64
+        first.save(update_fields=["source_sha256", "updated_at"])
+        second = self.make_job("second.csv", b"same bytes")
+        second.source_sha256 = "a" * 64
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                second.save(update_fields=["source_sha256", "updated_at"])
+
+    def test_confirmation_rechecks_closed_period_permission(self):
+        body = ("2026-01-15,OPS,5102,SUP-01,Office supplies,150.50,"
+                "INV-CLOSE,USD,transfer\n")
+        job = self.extract("recheck.csv", (CSV_HEAD + body).encode("utf-8"),
+                           user=self.admin)
+        svc.validate_job(job, self.admin)
+        self.p_jan.status = "closed"
+        self.p_jan.save(update_fields=["status"])
+        with self.assertRaises(PermissionDenied):
+            svc.run_import(job, self.finance)
+        self.assertEqual(Expense.objects.count(), 0)

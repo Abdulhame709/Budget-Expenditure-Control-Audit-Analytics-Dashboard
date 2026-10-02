@@ -10,6 +10,7 @@ import json
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -51,6 +52,9 @@ class ImportJob(models.Model):
     source_file = models.FileField(
         "الملف الأصلي (يُحفظ دائمًا)", upload_to="imports/%Y/%m/")
     original_filename = models.CharField("اسم الملف الأصلي", max_length=255)
+    source_sha256 = models.CharField(
+        "بصمة الملف SHA-256", max_length=64, blank=True, default="",
+        editable=False, db_index=True)
     file_format = models.CharField(
         "الصيغة", max_length=10, choices=FORMAT_CHOICES)
     status = models.CharField(
@@ -91,6 +95,11 @@ class ImportJob(models.Model):
         indexes = [
             models.Index(fields=["status", "created_at"],
                          name="ix_importjob_status_time"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_sha256"], condition=~Q(source_sha256=""),
+                name="uq_importjob_source_sha256"),
         ]
 
     def __str__(self):

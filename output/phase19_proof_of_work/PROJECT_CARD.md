@@ -10,10 +10,10 @@
 |:---|:---|
 | **Author / Owner** | **Abdulhameed** |
 | **Professional Role** | Internal Audit & Financial Review Professional / System Designer |
-| **System Classification** | Completed / Live Proof-of-Work · Training & Demonstration System |
+| **System Classification** | Proof-of-Work / Training & Demonstration System · production qualification in progress (not deployment approval) |
 | **Dataset** | 100% Synthetic Training Data (FY2026 Model Dataset) |
 | **Technology Stack** | Django 5.2 LTS · PostgreSQL 16 · Gunicorn · WhiteNoise · Bootstrap 5.3 RTL · Chart.js |
-| **Quality Baseline** | 334/334 Automated Tests Passing (100%) · Zero Issues on Django Check |
+| **Quality Baseline** | 353/353 local PostgreSQL tests passing · Django `check` clean · provider, domain, media persistence and restore remain unverified |
 | **License** | MIT License |
 
 ---

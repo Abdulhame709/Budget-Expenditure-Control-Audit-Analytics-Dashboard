@@ -6,6 +6,14 @@
 
 الحالة: ✅ منفَّذ · ⚠️ منفَّذ مع ملاحظات · ⏸️ معلَّق بقرار/أمر
 
+> **تصحيح تاريخي (2026-10-02):** هذه القائمة توثّق فحوص Phase 15 بتاريخها،
+> وليست موافقة نشر أو إثباتًا على مزوّد الاستضافة. Phase 16 يضيف عزل البيئة
+> وإعدادات staging/production وإجراءات release منفصلة؛ `load_training_dataset`
+> ممنوع في production. التحقق المحلي الحديث يُسجّل في `system/README.md`؛
+> `check --deploy` الحالي يُبقي `SECURE_HSTS_SECONDS=0` عمدًا؛ التشغيل المحلي يُظهر W004 بشأن HSTS. لم تُختبر إعدادات المزود.
+> النسخ/الاستعادة، المضيف وTLS والـproxy والأقفال على المزوّد ما زالت غير
+> مختبرة. لا نشر أو push أو merge.
+
 ---
 
 ## أ) فحوصات التكامل والسلامة (البنود 1–10)
@@ -27,22 +35,22 @@
 
 | # | البند | التنفيذ والدليل | الحالة |
 |---|---|---|---|
-| 11 | Security baseline review | `check --deploy` **= 0 issues** مع الأعلام الكاملة · Middlewares: Security/CSRF/XFrame/AccessControl · مدقّق كلمات مرور Django · بوابات صلاحيات على مستوى الصفحة والفعل · لا صلاحيات مجهولة (30 رمزًا مثبّتة) | ✅ |
-| 12 | Environment configuration | `.env` (غير مُرتبَط بـGit — مُتحقق في `.gitignore`) · `.env.example` محدَّث بقسم إنتاج كامل · إعدادات ثلاثية: base/development/production | ✅ |
+| 11 | Security baseline review | فحص Phase 15 بـHSTS preload كامل كان تاريخيًا بلا issues؛ إعداد Phase 16 يبقي `SECURE_HSTS_SECONDS=0` حتى مراجعة النطاق والـTLS، ويظهر W004 في التشغيل المحلي. راجع إعداد المزود قبل أي release. | ⚠️ |
+| 12 | Environment configuration | `.env` غير مُرتبط بـGit · base/development/staging/production منفصلة مع fail-closed checks محلية؛ إعدادات مزوّد الاستضافة والنطاق لم تُتحقّق. | ⚠️ |
 | 13 | SECRET_KEY / secrets | قاعدة: المفتاح من البيئة · **فجوة أُغلقت في هذه المرحلة**: بوابة قوة ترفض القيم الرمزية (`change-me…`/`django-insecure`/طول أقل من 50) حتى لو جاءت من `.env` — مُثبت بتجربة سالبة (رفض) وموجبة (قبول) · مولّد مفتاح موثّق في `.env.example` | ✅ |
 | 14 | DEBUG=False production | `production.py` تفرض `DEBUG=False` دائمًا · دليل: DEVELOPMENT=True / PRODUCTION=False · `DJANGO_DEBUG` الميت أُزيل من المثال | ✅ |
 | 15 | ALLOWED_HOSTS | إنتاج: فارغ = `ImproperlyConfigured` (مُثبت) · تعدد مضيفين بفواصل · تطوير `["*"]` مقصور على التطوير | ✅ |
 | 16 | Static files | WhiteNoise + `CompressedManifestStaticFilesStorage` · `collectstatic` = **128 ملفًا (384 post-processed)** دون خطأ · مسارات `/static/` · **ملاحظة KN-01**: Bootstrap/Chart.js خارجية (CDN) | ⚠️ |
 | 17 | Media configuration | `MEDIA_ROOT/URL` · التقديم في التطوير عبر `settings.DEBUG` فقط · إنتاج يحتاج مسار وسائط من الـproxy (مُوثّق في مقدّرات النشر) · رفع ≤10MB مُتحقَّق | ⚠️ |
-| 18 | PostgreSQL production readiness | PostgreSQL حصريًّا (D-01: لا SQLite — `DATABASE_URL` إلزامي ويُفشل الإقلاع) · `conn_max_age=600` + `conn_health_checks=True` · دور/قاعدة مخصّصة · pg_hba/TLS = مقدّر نشر | ✅ |
+| 18 | PostgreSQL production readiness | PostgreSQL حصريًا وإعداد TLS/URL مضبوط محليًا؛ دور وقاعدة ومضيف `pg_hba` والـTLS على المزوّد لم تُتحقّق بعد. | ⚠️ |
 
 ## ج) التشغيل والمستندات (البنود 19–22)
 
 | # | البند | التنفيذ والدليل | الحالة |
 |---|---|---|---|
 | 19 | Migration verification | `showmigrations`: **0 معلَّق** (كلها `[X]`) · `makemigrations --check --dry-run` = **No changes detected** (لا انحراف بين النماذج وبنية القاعدة) | ✅ |
-| 20 | Seed/reseed strategy | ثلاثة طبقات: (1) `migrate` → كتالوجات RBAC + 14 اختبارًا رقابيًا (من مigrations — لا يدوي)؛ (2) `manage.py load_training_dataset` (idempotent — حذف/إعادة بالفاتورة الاصطناعية) للمجموعة التدريبية؛ (3) مستخدمو التشغيل: `createsuperuser` + ربط أدوار عبر `UserRole` (مستخدمو `ds_*` يأتيان من المحمّل). **إعادة كاملة**: migrate → load_training_dataset → createsuperuser | ✅ |
-| 21 | Backup/restore guidance | **نسخة**: `pg_dump -Fc -d audit_budget_system -f audit_$(date +%F).dump` + أرشيف `media/` + حفظ `.env` (أسرار) بقناة منفصلة · **استعادة**: `createdb` → `pg_restore -d audit_budget_system audit_….dump` + فك `media/` · جدولة cron/systemd + نسخة خارج المضيف · اختبار استعادة ربع سنوي | ✅ وُثِّق |
+| 20 | Seed/reseed strategy | PHASE 15 وصفت استراتيجية demo تاريخيًا. PHASE 16 تمنع loader في production؛ dev مسموح وstaging يتطلب opt-in وقاعدة معزولة. Production: migrations + مستخدم مسمّى يُنشأ منفصلًا، بلا حسابات demo. تحقق bootstrap على المزوّد معلّق. | ⚠️ |
+| 21 | Backup/restore guidance | أوامر `pg_dump -Fc`/`pg_restore` وتصدير media/الأسرار بقناة منفصلة مُوثّقة تاريخيًا فقط؛ لا توجد نسخة مجدولة أو تجربة استعادة موثقة على المزوّد. RPO/RTO والاحتفاظ ما زالت تتطلب قرارًا وقياسًا. | ⚠️ |
 | 22 | README update | قسم **PHASE 15 — Release Candidate** أُضيف إلى `system/README.md` (ملخّص الفحوصات + مقدّرات النشر + الاستراتيجيات) | ✅ |
 
 ---
@@ -53,7 +61,7 @@
 2. **Python 3.11 + PostgreSQL 16** منفصل: دور/قاعدة/`pg_hba` + TLS، وصول عبر `DATABASE_URL`.
 3. **`.env` إنتاجية** (خارج Git): `DJANGO_SECRET_KEY` عشوائي ≥50 حرفًا · `DJANGO_ALLOWED_HOSTS` (نطاقات) · `DATABASE_URL` · أعلام TLS (`DJANGO_SECURE_SSL_REDIRECT/HSTS…`) · `DJANGO_CSRF_TRUSTED_ORIGINS` عند الحاجة.
 4. `DJANGO_SETTINGS_MODULE=config.settings.production`.
-5. خطوات الإصدار: `migrate` → `collectstatic --noinput` → `load_training_dataset` (بيانات التدريب) → `createsuperuser`.
+5. خطوات الإصدار بعد الموافقة: جمع static عند build → مهمة release منفصلة بـ`DJANGO_USE_MIGRATION_DATABASE=true` لترحيل DB → bootstrap لمستخدم إنتاج مسمّى؛ لا تشغّل `load_training_dataset` في production.
 6. **خادم WSGI** (gunicorn) خلف **reverse proxy** (nginx/Caddy) يمنح TLS + `X-Forwarded-Proto` + مسار `/media/` للوسائط + (اختياري) تخطي WhiteNoise لـ`/static/`.
 7. تثبيت الأصول محليًا (KN-01) أو ضمان وصول إلى jsdelivr.
 8. نسخ احتياطي مجدول (البند 21) + تدوير سجلات (مُفعّل: RotatingFileHandler 2MB×5).

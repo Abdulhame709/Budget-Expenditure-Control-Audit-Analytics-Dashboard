@@ -1,16 +1,24 @@
 # Live Demo Description — System Overview & Access
 
 ### **Budget & Expenditure Control — Audit Analytics System**
-*Published Demo / Live Demonstration Documentation*
+*Previously shared Manus Demo — page response checked 2026-10-02; served revision unverified*
+
+> A read-only fetch of the external URL returned the demo page. This confirms
+> reachability at check time only: it does not identify the deployed commit or
+> verify hosting/database configuration. Phase 16 changes were not deployed.
+> The returned page included operational environment diagnostics and a
+> production-readiness claim; review/gate that public content before relying on
+> it. Bootstrap/Chart.js still use an external CDN, so offline delivery is not
+> established.
 
 ---
 
 ## 1. Overview
-The Published Demo is a web-based demonstration implementation of the **Budget & Expenditure Control — Audit Analytics System**. It runs on a dedicated application stack combining:
-- **Backend**: Django 5.2 LTS with Gunicorn WSGI workers.
-- **Database**: PostgreSQL 16 providing complete transactional support and check constraints.
-- **Frontend**: Responsive Arabic RTL interface powered by locally packaged Bootstrap 5.3.3 and Chart.js 4 (no external network dependencies).
-- **Environment**: Public HTTPS endpoint with automated static compression via WhiteNoise and complete role-based permission gates.
+The system is a web-based training implementation of the **Budget & Expenditure Control — Audit Analytics System**. The local codebase is built from:
+- **Backend**: Django 5.2 with Gunicorn WSGI configuration.
+- **Database**: PostgreSQL 16 in the local verification setup; managed-provider behavior remains unverified.
+- **Frontend**: Responsive Arabic RTL templates; Bootstrap RTL and Chart.js are referenced via an external CDN (offline availability is not established).
+- **Static/media**: WhiteNoise is configured for static files; persistent private media storage and provider-side TLS/proxy behavior still require validation.
 
 ---
 

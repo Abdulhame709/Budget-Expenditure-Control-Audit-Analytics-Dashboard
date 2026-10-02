@@ -7,6 +7,8 @@ from django.urls import include, path
 from config import views
 
 urlpatterns = [
+    path("health/live/", views.health_live, name="health_live"),
+    path("health/ready/", views.health_ready, name="health_ready"),
     path("", views.home, name="home"),
     path("manus-routes.json", views.route_manifest, name="route_manifest"),
     path("dashboard/", include("apps.analytics.urls")),

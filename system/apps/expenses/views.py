@@ -26,6 +26,7 @@ from django.utils import timezone
 from apps.accounts.permissions import has_perm, require_permission
 from apps.expenses import services
 from apps.governance.models import AuditLog
+from config.csv_safety import safe_spreadsheet_value
 from apps.reference.services import (
     changes_between,
     log_action,
@@ -279,7 +280,7 @@ def expense_export(request):
     writer = csv.writer(response)
     writer.writerow([label for _, label in EXPORT_COLUMNS])
     for e in qs.iterator():
-        writer.writerow([
+        values = [
             e.expense_number, e.expense_date.isoformat(), str(e.period),
             str(e.department), str(e.account),
             str(e.expense_category) if e.expense_category_id else "",
@@ -288,7 +289,8 @@ def expense_export(request):
             e.get_payment_method_display(), e.payment_reference,
             e.invoice_reference or "", e.approval_reference or "",
             e.created_by.username if e.created_by_id else "",
-        ])
+        ]
+        writer.writerow([safe_spreadsheet_value(value) for value in values])
     log_action(action="expenses_exported", entity_type="expense",
                entity_id="",
                diff={"count": count,

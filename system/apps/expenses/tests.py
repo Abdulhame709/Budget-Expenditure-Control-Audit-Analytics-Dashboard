@@ -505,6 +505,15 @@ class ExportSearchFilterTests(BaseFixture):
         self.assertTrue(AuditLog.objects.filter(
             action="expenses_exported").exists())
 
+    def test_csv_formula_text_is_neutralized_and_amount_remains_numeric_text(self):
+        expense = Expense.objects.get(expense_number="EXP-2026-00001")
+        expense.description = '=HYPERLINK("https://invalid")'
+        expense.save(update_fields=["description"])
+        response = self.c.get(reverse("expenses:export"))
+        body = response.content.decode("utf-8-sig")
+        self.assertIn("'=HYPERLINK", body)
+        self.assertIn(",100.00,", body)
+
     def test_export_respects_filters(self):
         response = self.c.get(
             reverse("expenses:export"),

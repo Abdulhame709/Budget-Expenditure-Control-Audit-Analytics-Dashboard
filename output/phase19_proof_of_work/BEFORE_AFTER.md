@@ -25,7 +25,7 @@
 
 ---
 
-## 3. AFTER (Published Demo / Release Candidate Training System)
+## 3. AFTER (Manus Demo / Training System — page responded 2026-10-02; served revision unverified)
 A functioning Release Candidate demonstration system delivering:
 1. **Relational Database**: Robust PostgreSQL storage with strict referential constraints and check constraints ($\text{Annual} = \sum \text{Months}$).
 2. **Manual Entry**: Controlled, validated web forms for budgets, expenses, procurements, and reference master data.

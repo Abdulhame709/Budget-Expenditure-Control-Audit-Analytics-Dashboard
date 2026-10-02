@@ -12,6 +12,40 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parents[2]  # system/ (…/system/config/settings/base.py)
 load_dotenv(BASE_DIR / ".env")
 
+# Resolve the deployment environment from the settings module unless explicitly
+# declared. An explicit mismatch is a startup error, never a silent downgrade.
+_known_environments = {"development", "staging", "production"}
+_settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "").rsplit(".", 1)[-1]
+_explicit_environment = os.environ.get("DJANGO_ENV", "").strip().lower()
+if _explicit_environment and _explicit_environment not in _known_environments:
+    raise ImproperlyConfigured("DJANGO_ENV must be development, staging, or production.")
+if (
+    _settings_module in _known_environments
+    and _explicit_environment
+    and _settings_module != _explicit_environment
+):
+    raise ImproperlyConfigured(
+        "DJANGO_ENV must match the selected DJANGO_SETTINGS_MODULE environment."
+    )
+DEPLOYMENT_ENV = (
+    _settings_module if _settings_module in _known_environments
+    else _explicit_environment or "development"
+)
+IS_SECURE_ENVIRONMENT = DEPLOYMENT_ENV in {"staging", "production"}
+if IS_SECURE_ENVIRONMENT and _settings_module not in {"staging", "production"}:
+    raise ImproperlyConfigured(
+        "Staging/production environment must use config.settings.staging or .production."
+    )
+ALLOW_SYNTHETIC_DATASET = (
+    DEPLOYMENT_ENV == "development"
+    or (
+        DEPLOYMENT_ENV == "staging"
+        and os.environ.get("DJANGO_ALLOW_SYNTHETIC_DATASET", "false").strip().lower()
+        == "true"
+    )
+)
+READINESS_CHECK_TOKEN = os.environ.get("DJANGO_READINESS_TOKEN", "").strip()
+
 # ---------------------------------------------------------------- identity
 SYSTEM_NAME_AR = "نظام التحليل الرقابي والموازنة والمصروفات والمشتريات"
 SYSTEM_NAME_EN = "Audit Analytics & Budget Control System"
@@ -32,20 +66,47 @@ ALLOWED_HOSTS: list[str] = [
 ]
 
 # ---------------------------------------------------------------- database
-# D-01: PostgreSQL is the only database. Missing DATABASE_URL in production = hard error.
-DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+# PostgreSQL only. Web processes use the runtime role; a release/migration task
+# opts into its separate connection explicitly and fails closed when absent.
+_migration_flag = os.environ.get(
+    "DJANGO_USE_MIGRATION_DATABASE", "false"
+).strip().lower()
+if _migration_flag not in {"true", "false"}:
+    raise ImproperlyConfigured(
+        "DJANGO_USE_MIGRATION_DATABASE must be 'true' or 'false'."
+    )
+if _migration_flag == "true":
+    DATABASE_URL = os.environ.get("MIGRATION_DATABASE_URL", "").strip()
+    if not DATABASE_URL:
+        raise ImproperlyConfigured(
+            "DJANGO_USE_MIGRATION_DATABASE=true requires MIGRATION_DATABASE_URL."
+        )
+else:
+    DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 if not DATABASE_URL:
     raise ImproperlyConfigured(
         "DATABASE_URL is not set. PostgreSQL is mandatory (decision D-01) — "
         "copy .env.example to .env and configure it."
     )
-DATABASES = {
-    "default": dj_database_url.parse(
-        DATABASE_URL,
-        conn_max_age=600,
-        conn_health_checks=True,
+_database_config = dj_database_url.parse(
+    DATABASE_URL,
+    conn_max_age=600,
+    conn_health_checks=True,
+    ssl_require=IS_SECURE_ENVIRONMENT,
+)
+if _database_config.get("ENGINE") != "django.db.backends.postgresql":
+    raise ImproperlyConfigured(
+        "DATABASE_URL must identify PostgreSQL (SQLite and other engines are unsupported)."
     )
-}
+if IS_SECURE_ENVIRONMENT:
+    _sslmode = str(
+        _database_config.get("OPTIONS", {}).get("sslmode", "require")
+    ).lower()
+    if _sslmode not in {"require", "verify-ca", "verify-full"}:
+        raise ImproperlyConfigured(
+            "Staging/production DATABASE_URL must require PostgreSQL TLS."
+        )
+DATABASES = {"default": _database_config}
 
 # ---------------------------------------------------------------- apps
 DJANGO_APPS = [
@@ -105,6 +166,7 @@ TEMPLATES = [
 
 # ---------------------------------------------------------------- auth (foundation)
 AUTH_USER_MODEL = "accounts.User"
+AUTHENTICATION_BACKENDS = ["config.backends.EnvironmentModelBackend"]
 LOGIN_URL = "/accounts/login/"  # wired in the authentication phase
 LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "home"
@@ -131,7 +193,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------- logging foundation
 LOGS_DIR = BASE_DIR / "logs"
-LOGS_DIR.mkdir(exist_ok=True)
+if not IS_SECURE_ENVIRONMENT:
+    LOGS_DIR.mkdir(exist_ok=True)
 
 LOGGING = {
     "version": 1,

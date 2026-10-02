@@ -28,7 +28,9 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.core.files.base import ContentFile
 
@@ -406,6 +408,15 @@ def load_training_dataset(*, verbosity: int = 0) -> dict:
     replaced atomically; dimensions/users are get_or_create'd. Returns a
     stats dict (also printed by the `load_training_dataset` command).
     """
+    if settings.DEPLOYMENT_ENV == "production":
+        raise ImproperlyConfigured(
+            "Synthetic training data is never permitted in production."
+        )
+    if settings.DEPLOYMENT_ENV == "staging" and not settings.ALLOW_SYNTHETIC_DATASET:
+        raise ImproperlyConfigured(
+            "Set DJANGO_ALLOW_SYNTHETIC_DATASET=true only for an isolated staging database."
+        )
+
     from apps.accounts.models import Role, UserRole
     from apps.budget.models import Budget, BudgetLine, BudgetVersion
     from apps.expenses.models import Expense
@@ -424,11 +435,21 @@ def load_training_dataset(*, verbosity: int = 0) -> dict:
         for spec in USERS:
             user, created = User.objects.get_or_create(
                 username=spec["username"],
-                defaults={"is_staff": False, "is_superuser": False},
+                defaults={
+                    "is_staff": False,
+                    "is_superuser": False,
+                    "is_demo": True,
+                },
             )
+            fields_to_update = []
             if created:
                 user.set_password(DS_PASSWORD)
-                user.save(update_fields=["password"])
+                fields_to_update.append("password")
+            if not user.is_demo:
+                user.is_demo = True
+                fields_to_update.append("is_demo")
+            if fields_to_update:
+                user.save(update_fields=fields_to_update)
             role = Role.objects.get(code=spec["role"])
             UserRole.objects.get_or_create(user=user, role=role)
             users[spec["username"]] = user
@@ -438,17 +459,23 @@ def load_training_dataset(*, verbosity: int = 0) -> dict:
         # audit records and the original four role fixtures.
         demo_admin, _ = User.objects.get_or_create(
             username="admin",
-            defaults={"is_staff": True, "is_superuser": True},
+            defaults={"is_staff": True, "is_superuser": True, "is_demo": True},
         )
-        if (
-            not demo_admin.is_staff
-            or not demo_admin.is_superuser
-            or not demo_admin.check_password(ADMIN_PASSWORD)
-        ):
+        admin_updates = []
+        if not demo_admin.is_staff:
             demo_admin.is_staff = True
+            admin_updates.append("is_staff")
+        if not demo_admin.is_superuser:
             demo_admin.is_superuser = True
+            admin_updates.append("is_superuser")
+        if not demo_admin.is_demo:
+            demo_admin.is_demo = True
+            admin_updates.append("is_demo")
+        if not demo_admin.check_password(ADMIN_PASSWORD):
             demo_admin.set_password(ADMIN_PASSWORD)
-            demo_admin.save(update_fields=["is_staff", "is_superuser", "password"])
+            admin_updates.append("password")
+        if admin_updates:
+            demo_admin.save(update_fields=admin_updates)
         UserRole.objects.get_or_create(user=demo_admin, role=Role.objects.get(code="admin"))
         stats["users"] = len(users)
 

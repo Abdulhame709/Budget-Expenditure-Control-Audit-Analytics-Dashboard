@@ -1,45 +1,92 @@
-"""Project-level views: home (system status) + error pages."""
-import django
+"""Project-level views: safe landing page, health probes and error pages."""
+import hmac
 import json
+import os
 from pathlib import Path
-from django.db import connection
-from django.db.utils import OperationalError
-from django.http import JsonResponse
+
+import django
+from django.conf import settings
+from django.contrib.auth.views import redirect_to_login
+from django.db import DatabaseError, connection
+from django.http import HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 
 
 def _db_status() -> tuple[bool, str, str]:
-    """Real database probe — the home page never shows invented numbers."""
+    """Development-only DB diagnostics; never expose details in public probes."""
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
             cursor.fetchone()
         return True, connection.vendor, connection.settings_dict.get("NAME", "")
-    except OperationalError as exc:
+    except DatabaseError as exc:
         return False, connection.vendor, str(exc)[:120]
 
 
+@require_GET
+def health_live(request):
+    """Public liveness probe, independent of DB and deployment configuration."""
+    return JsonResponse({"status": "ok"})
+
+
+@require_GET
+def health_ready(request):
+    """Readiness probe; hidden unless a trusted monitor supplies its secret token."""
+    expected = settings.READINESS_CHECK_TOKEN
+    supplied = request.headers.get("X-Readiness-Token", "")
+    if not expected or not supplied or not hmac.compare_digest(supplied, expected):
+        return HttpResponseNotFound()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except DatabaseError:
+        return JsonResponse({"status": "unavailable"}, status=503)
+    response = JsonResponse({"status": "ready"})
+    response["Cache-Control"] = "no-store"
+    return response
+
+
 def home(request):
-    db_ok, db_vendor, db_name = _db_status()
-    return render(
-        request,
-        "home.html",
-        {
-            "django_version": django.get_version(),
+    """Training landing page; secure environments require authentication."""
+    if (
+        settings.DEPLOYMENT_ENV in {"staging", "production"}
+        and not request.user.is_authenticated
+    ):
+        return redirect_to_login(request.get_full_path())
+
+    show_environment_details = settings.DEPLOYMENT_ENV == "development"
+    context = {
+        "deployment_env": settings.DEPLOYMENT_ENV,
+        "show_environment_details": show_environment_details,
+        "django_version": django.get_version() if show_environment_details else "",
+        "db_ok": None,
+        "db_vendor": "",
+        "db_name": "",
+        "settings_module": "",
+        "apps_count": 0,
+        "is_debug": settings.DEBUG,
+    }
+    if show_environment_details:
+        db_ok, db_vendor, db_name = _db_status()
+        context.update({
             "db_ok": db_ok,
             "db_vendor": db_vendor,
             "db_name": db_name,
-            "settings_module": __import__("os").environ.get(
-                "DJANGO_SETTINGS_MODULE", ""
-            ),
-            "apps_count": len(__import__("django.conf", fromlist=["settings"]).settings.INSTALLED_APPS),
-            "debug": request.GET.get("debug") is not None or None,
-            "is_debug": __import__("django.conf", fromlist=["settings"]).settings.DEBUG,
-        },
-    )
+            "settings_module": os.environ.get("DJANGO_SETTINGS_MODULE", ""),
+            "apps_count": len(settings.INSTALLED_APPS),
+        })
+    return render(request, "home.html", context)
 
 
+@require_GET
 def route_manifest(request):
+    if (
+        settings.DEPLOYMENT_ENV in {"staging", "production"}
+        and not request.user.is_authenticated
+    ):
+        return redirect_to_login(request.get_full_path())
     manifest_path = Path(__file__).resolve().parents[1] / "route_manifest.json"
     return JsonResponse(json.loads(manifest_path.read_text(encoding="utf-8")))
 

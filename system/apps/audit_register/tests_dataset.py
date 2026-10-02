@@ -19,6 +19,7 @@ from datetime import date
 from decimal import Decimal as D
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db.models import Sum
@@ -218,6 +219,13 @@ class DatasetLoaderTests(DatasetBase):
                  MonthlyPeriod.objects.count())
         self.assertEqual(before, after)
         self.assertEqual(before[:2], (43, 9))
+
+    @override_settings(DEPLOYMENT_ENV="production")
+    def test_loader_refuses_production_environment(self):
+        before = Expense.objects.count()
+        with self.assertRaises(ImproperlyConfigured):
+            load_training_dataset()
+        self.assertEqual(Expense.objects.count(), before)
 
 
 # ============================================================ 2) auth

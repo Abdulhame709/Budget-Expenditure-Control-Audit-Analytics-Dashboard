@@ -5,6 +5,7 @@ UserRole rows directly), so enforcement cannot be "forgotten" in a view.
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -37,6 +38,8 @@ def create_user(
     """Create a user + assign roles. Page/Action permission: users.manage."""
     if not has_perm(actor, "users.manage"):
         raise PermissionDenied("إنشاء المستخدمين يتطلب صلاحية users.manage")
+    if settings.DEPLOYMENT_ENV == "production" and is_demo:
+        raise ValidationError("إنشاء حساب تدريبي غير مسموح في الإنتاج.")
     if User.objects.filter(username=username).exists():
         raise ValidationError({"username": "اسم المستخدم موجود مسبقًا"})
 
@@ -86,6 +89,10 @@ def update_user(
     """Update profile/status/roles. Object-level rule: no self-service role edits."""
     if not has_perm(actor, "users.manage"):
         raise PermissionDenied("تعديل المستخدمين يتطلب صلاحية users.manage")
+    if settings.DEPLOYMENT_ENV == "production" and (
+        target.is_demo or is_demo is True
+    ):
+        raise ValidationError("لا يمكن إنشاء حسابات تدريبية أو تحويلها في الإنتاج.")
     if target.pk == actor.pk:
         raise PermissionDenied(
             "لا يمكن لحسابك تعديل أدوارك أو حالتك بنفسك (قاعدة Object-Level: منع قفل الذات)."

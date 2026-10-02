@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import re
 import shutil
+from zipfile import ZipFile
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -26,8 +27,14 @@ from apps.expenses.services import next_expense_number
 from apps.governance.services import log_action
 from apps.imports.models import ImportJob
 from apps.reference.models import Account, Department, MonthlyPeriod, Supplier
+from apps.reference.services import require_period_postable
 
 MAX_FILE_MB = 10
+MAX_ROWS = 20_000
+MAX_COLUMNS = 200
+MAX_PDF_PAGES = 100
+MAX_XLSX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+MAX_XLSX_MEMBERS = 2_000
 ALLOWED_EXTENSIONS = {".csv": "csv", ".xlsx": "xlsx", ".pdf": "pdf"}
 
 # ---------------------------------------------------------------- mapping
@@ -106,6 +113,10 @@ def suggest_mapping(headers: list[str]) -> dict[str, str]:
 
 # ---------------------------------------------------------------- extraction
 def _records_from_df(df: pd.DataFrame) -> tuple[list[str], list[dict]]:
+    if df.shape[1] > MAX_COLUMNS:
+        raise ValidationError(f"عدد الأعمدة يتجاوز الحد المسموح ({MAX_COLUMNS}).")
+    if df.shape[0] > MAX_ROWS:
+        raise ValidationError(f"عدد الصفوف يتجاوز الحد المسموح ({MAX_ROWS}).")
     headers = [str(h).strip() for h in df.columns]
     rows: list[dict] = []
     for rec in df.to_dict(orient="records"):
@@ -141,12 +152,25 @@ def _extract_csv(fileobj) -> tuple[list[str], list[dict]]:
 
 
 def _extract_excel(fileobj) -> tuple[list[str], list[dict]]:
+    raw = fileobj.read()
+    fileobj.seek(0)
     try:
-        df = pd.read_excel(fileobj, dtype=str, keep_default_na=False)
-    except Exception as exc:  # noqa: BLE001 — surface as Arabic form error
+        with ZipFile(io.BytesIO(raw)) as archive:
+            members = archive.infolist()
+            if len(members) > MAX_XLSX_MEMBERS:
+                raise ValidationError("ملف Excel يحتوي عناصر أكثر من الحد المسموح.")
+            if sum(member.file_size for member in members) > MAX_XLSX_UNCOMPRESSED_BYTES:
+                raise ValidationError("حجم محتوى Excel بعد فك الضغط يتجاوز الحد المسموح.")
+            names = set(archive.namelist())
+            if "[Content_Types].xml" not in names or "xl/workbook.xml" not in names:
+                raise ValidationError("ملف Excel لا يحتوي بنية xlsx صالحة.")
+        df = pd.read_excel(io.BytesIO(raw), dtype=str, keep_default_na=False)
+    except ValidationError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — Arabic form error
         raise ValidationError(
             "تعذّر قراءة ملف Excel — تأكد أنه بصيغة xlsx سليمة. "
-            f"({type(exc).__name__})")
+            f"({type(exc).__name__})") from exc
     return _records_from_df(df)
 
 
@@ -173,13 +197,25 @@ def _extract_pdf(fileobj) -> tuple[list[str], list[dict], list[str], bool]:
     fileobj.seek(0)
     table_rows: list[list[str]] = []
     with pdfplumber.open(fileobj) as pdf:
+        if len(pdf.pages) > MAX_PDF_PAGES:
+            raise ValidationError(
+                f"عدد صفحات PDF يتجاوز الحد المسموح ({MAX_PDF_PAGES})."
+            )
         for page in pdf.pages:
             for table in (page.extract_tables() or []):
                 for row in table:
                     table_rows.append([
                         str(c).strip() if c is not None else "" for c in row])
+                    if len(table_rows) > MAX_ROWS + 1:
+                        raise ValidationError(
+                            f"عدد صفوف PDF يتجاوز الحد المسموح ({MAX_ROWS})."
+                        )
         if table_rows:
             headers = table_rows[0]
+            if len(headers) > MAX_COLUMNS:
+                raise ValidationError(
+                    f"عدد الأعمدة يتجاوز الحد المسموح ({MAX_COLUMNS})."
+                )
             rows = []
             for raw in table_rows[1:]:
                 cells = list(raw) + [""] * (len(headers) - len(raw))
@@ -195,6 +231,8 @@ def _extract_pdf(fileobj) -> tuple[list[str], list[dict], list[str], bool]:
         parts = [ln.split(delim) for ln in lines]
         if len(parts) >= 2 and all(len(p) >= 2 for p in parts):
             width = max(len(p) for p in parts)
+            if width > MAX_COLUMNS or len(parts) - 1 > MAX_ROWS:
+                raise ValidationError("يتجاوز ملف PDF حدود الصفوف أو الأعمدة المسموحة.")
             headers = [c.strip() for c in (parts[0] + [""] * width)[:width]]
             rows = []
             for p in parts[1:]:
@@ -332,8 +370,10 @@ def _lookup_maps():
     return depts, accs, sups
 
 
+@transaction.atomic
 def validate_job(job: ImportJob, user, *, request=None) -> dict:
-    """Apply mapping → per-row validation → summary. Saves `job`."""
+    """Apply mapping → per-row validation → summary under a row lock."""
+    job = ImportJob.objects.select_for_update().get(pk=job.pk)
     if job.status not in (ImportJob.STATUS_EXTRACTED,
                           ImportJob.STATUS_VALIDATED):
         raise ValidationError("لا يمكن التحقق إلا بعد الاستخراج بنجاح.")
@@ -526,62 +566,79 @@ def _build_expense(ready: dict, *, period=None, number: str | None = None):
 
 
 # ---------------------------------------------------------------- import run
+@transaction.atomic
 def run_import(job: ImportJob, user, *, request=None) -> int:
-    """Confirmation step — insert ONLY valid rows, atomically, then log."""
+    """Confirmation step — insert valid rows atomically while holding the job lock."""
+    job = ImportJob.objects.select_for_update().get(pk=job.pk)
     if job.status != ImportJob.STATUS_VALIDATED:
         raise ValidationError(
             "لا يمكن التنفيذ قبل التحقق من البيانات واعتماد المطابقة.")
-    valid_rows = [r for r in job.rows if r.get("valid")]
+    valid_rows = [row for row in job.rows if row.get("valid")]
     if not valid_rows:
         raise ValidationError("لا توجد صفوف صالحة للاستيراد.")
 
     imported = 0
-    with transaction.atomic():
-        for row in valid_rows:
-            ready = row["ready"]
-            period = MonthlyPeriod.objects.get(pk=ready["period_id"])
-            number = ready.get("expense_number") or next_expense_number(
-                date.fromisoformat(ready["expense_date"]))
-            expense = _build_expense(ready, period=period, number=number)
-            expense.full_clean()
-            if not expense.expense_category_id:
-                expense.expense_category = expense.account.expense_category
-            if expense.approval_reference:
-                expense.approved_by = user
-                expense.approved_at = timezone.now()
-            expense.save()
-            imported += 1
+    for row in valid_rows:
+        ready = row["ready"]
+        period = MonthlyPeriod.objects.select_for_update().select_related(
+            "fiscal_year"
+        ).get(pk=ready["period_id"])
+        # Recheck period status and posting permission at commit time; validation
+        # may have happened before the period was closed or deactivated.
+        require_period_postable(
+            user, period,
+            purpose=f"استيراد الملف {job.original_filename}", request=request)
+        number = ready.get("expense_number") or next_expense_number(
+            date.fromisoformat(ready["expense_date"]))
+        expense = _build_expense(ready, period=period, number=number)
+        expense.full_clean()
+        if not expense.expense_category_id:
+            expense.expense_category = expense.account.expense_category
+        if expense.approval_reference:
+            expense.approved_by = user
+            expense.approved_at = timezone.now()
+        expense.save()
+        imported += 1
 
-        job.status = ImportJob.STATUS_COMPLETED
-        job.imported_count = imported
-        job.log("import_completed", imported=imported,
-                skipped=len(job.rows) - imported)
-        job.save()
-        log_action(
-            action="data_imported",
-            entity_type="import_job",
-            entity_id=job.pk,
-            diff={
-                "target": job.target,
-                "file": job.original_filename,
-                "imported": imported,
-                "skipped": len(job.rows) - imported,
-                "summary": {k: job.summary.get(k) for k in
-                            ("total", "valid", "invalid", "duplicate")},
-            },
-            request=request,
-            actor=user,
-        )
+    job.status = ImportJob.STATUS_COMPLETED
+    job.imported_count = imported
+    job.log("import_completed", imported=imported,
+            skipped=len(job.rows) - imported)
+    job.save()
+    log_action(
+        action="data_imported",
+        entity_type="import_job",
+        entity_id=job.pk,
+        diff={
+            "target": job.target,
+            "file": job.original_filename,
+            "imported": imported,
+            "skipped": len(job.rows) - imported,
+            "summary": {key: job.summary.get(key) for key in
+                        ("total", "valid", "invalid", "duplicate")},
+        },
+        request=request,
+        actor=user,
+    )
     return imported
 
 
+@transaction.atomic
 def cancel_job(job: ImportJob, user, *, request=None) -> None:
-    """Cancel a job — the original file is kept as evidence, always."""
-    if job.status in (ImportJob.STATUS_COMPLETED,):
+    """Cancel a job once; retain the original file as evidence."""
+    job = ImportJob.objects.select_for_update().get(pk=job.pk)
+    if job.status == ImportJob.STATUS_COMPLETED:
         raise ValidationError("لا يمكن إلغاء عملية مكتملة.")
+    if job.status == ImportJob.STATUS_CANCELLED:
+        return
     job.status = ImportJob.STATUS_CANCELLED
     job.log("cancelled", by=getattr(user, "username", ""))
     job.save()
     log_action(
-        action="entity_updated", entity_type="import_job", entity_id=job.pk,
-        diff={"status": job.status}, request=request, actor=user)
+        action="entity_updated",
+        entity_type="import_job",
+        entity_id=job.pk,
+        diff={"status": job.status},
+        request=request,
+        actor=user,
+    )

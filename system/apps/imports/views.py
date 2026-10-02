@@ -6,8 +6,11 @@ Permissions reuse the existing catalog codes (`imports.view` / `imports.run`)
 """
 from __future__ import annotations
 
+import hashlib
+
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods, require_POST
@@ -27,10 +30,25 @@ def _fail_extract(job: ImportJob, exc: ValidationError, request) -> None:
     messages.error(request, "فشل الاستخراج: " + exc.messages[0])
 
 
+def _visible_jobs(user):
+    jobs = ImportJob.objects.select_related("created_by")
+    if has_perm(user, "users.manage"):
+        return jobs
+    return jobs.filter(created_by=user)
+
+
+def _sha256_upload(upload) -> str:
+    digest = hashlib.sha256()
+    for chunk in upload.chunks():
+        digest.update(chunk)
+    upload.seek(0)
+    return digest.hexdigest()
+
+
 # ---------------------------------------------------------------- list
 @require_permission("imports.view")
 def import_list(request):
-    jobs = ImportJob.objects.select_related("created_by")[:200]
+    jobs = _visible_jobs(request.user)[:200]
     return render(request, "imports/list.html", {
         "jobs": jobs, "can_run": has_perm(request.user, "imports.run")})
 
@@ -47,14 +65,26 @@ def import_new(request):
         except ValidationError as exc:
             form.add_error("source_file", exc)
         else:
+            source_sha256 = _sha256_upload(upload)
+            if ImportJob.objects.filter(source_sha256=source_sha256).exists():
+                form.add_error("source_file", "سبق رفع ملف مطابق إلى النظام؛ لن تُنشأ عملية مكررة.")
+                return render(request, "imports/new.html", {"form": form})
             job = ImportJob(
                 target=form.cleaned_data["target"],
                 source_file=upload,
                 original_filename=upload.name,
+                source_sha256=source_sha256,
                 file_format=fmt,
                 created_by=request.user,
             )
-            job.save()
+            try:
+                with transaction.atomic():
+                    job.save()
+            except IntegrityError:
+                if job.source_file.name:
+                    job.source_file.storage.delete(job.source_file.name)
+                form.add_error("source_file", "سبق رفع ملف مطابق إلى النظام؛ لن تُنشأ عملية مكررة.")
+                return render(request, "imports/new.html", {"form": form})
             job.log("uploaded", filename=upload.name, fmt=fmt,
                     size_bytes=upload.size)
             job.save(update_fields=["job_log", "updated_at"])
@@ -81,7 +111,7 @@ def import_new(request):
 # ---------------------------------------------------------------- detail
 @require_permission("imports.view")
 def import_detail(request, pk):
-    job = get_object_or_404(ImportJob, pk=pk)
+    job = get_object_or_404(_visible_jobs(request.user), pk=pk)
     can_run = has_perm(request.user, "imports.run")
     mapping_form = None
     preview_rows = []
@@ -112,7 +142,7 @@ def import_detail(request, pk):
 @require_permission("imports.run")
 @require_POST
 def import_validate(request, pk):
-    job = get_object_or_404(ImportJob, pk=pk)
+    job = get_object_or_404(_visible_jobs(request.user), pk=pk)
     if job.status not in (ImportJob.STATUS_EXTRACTED,
                           ImportJob.STATUS_VALIDATED):
         messages.error(request, "لا يمكن التحقق من هذه الحالة.")
@@ -149,7 +179,7 @@ def import_validate(request, pk):
 @require_permission("imports.run")
 @require_POST
 def import_confirm(request, pk):
-    job = get_object_or_404(ImportJob, pk=pk)
+    job = get_object_or_404(_visible_jobs(request.user), pk=pk)
     try:
         imported = svc.run_import(job, request.user, request=request)
     except ValidationError as exc:
@@ -166,7 +196,7 @@ def import_confirm(request, pk):
 @require_permission("imports.run")
 @require_POST
 def import_cancel(request, pk):
-    job = get_object_or_404(ImportJob, pk=pk)
+    job = get_object_or_404(_visible_jobs(request.user), pk=pk)
     try:
         svc.cancel_job(job, request.user, request=request)
     except ValidationError as exc:
@@ -179,7 +209,7 @@ def import_cancel(request, pk):
 # ---------------------------------------------------------------- original file
 @require_permission("imports.view")
 def import_file(request, pk):
-    job = get_object_or_404(ImportJob, pk=pk)
+    job = get_object_or_404(_visible_jobs(request.user), pk=pk)
     log_action(
         action="import_file_downloaded", entity_type="import_job",
         entity_id=job.pk, diff={"file": job.original_filename},

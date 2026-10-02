@@ -4,9 +4,9 @@ Covers: login/logout + password security · page-level URL gating (direct access
 · action-level POST gating · object-level rule (no self role edits) ·
 role catalog vs approved matrix · audit trail entries.
 """
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import PermissionDenied
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import Role, UserRole
@@ -259,3 +259,26 @@ class LoginRequiredObjectTests(TestCase):
         self.assertContains(response, "own_user")
         self.assertContains(response, "budget.edit")
         self.assertNotContains(response, "users.manage")  # not this user's perm
+
+
+class ProductionDemoGuardTests(TestCase):
+    @override_settings(DEPLOYMENT_ENV="production")
+    def test_demo_accounts_cannot_authenticate(self):
+        demo = User.objects.create_user(
+            username="tagged_demo", password=PW, is_demo=True)
+        self.assertIsNone(authenticate(username="tagged_demo", password=PW))
+        self.assertTrue(demo.is_demo)
+
+    @override_settings(DEPLOYMENT_ENV="production")
+    def test_demo_accounts_cannot_be_created_or_reclassified(self):
+        from django.core.exceptions import ValidationError
+
+        admin = make_user("production_admin_guard", "admin")
+        with self.assertRaises(ValidationError):
+            create_user(
+                actor=admin, username="blocked_demo", password=PW,
+                role_codes=["finance"], is_demo=True)
+        demo = User.objects.create_user(
+            username="existing_demo_guard", password=PW, is_demo=True)
+        with self.assertRaises(ValidationError):
+            update_user(actor=admin, target=demo, is_demo=False)

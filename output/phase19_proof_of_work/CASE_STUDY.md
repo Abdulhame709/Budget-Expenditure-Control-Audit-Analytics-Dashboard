@@ -6,6 +6,6 @@
 
 **Build:** I engineered a database-driven web application using Django 5.2 and PostgreSQL 16. The system incorporates role-based access control across 30 permissions, 14 automated audit test evaluators, a three-stage import pipeline (Excel/CSV/PDF), interactive KPI dashboards, 9 exportable reports, and full audit logging.
 
-**Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, flagging exactly 28 predetermined exceptions with zero false positives across high, medium, and low risk tiers.
+**Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, matching 28 Ground-Truth Control Exceptions with zero false positives against the predefined Ground-Truth test set across high, medium, and low risk tiers. The full analytical output contains 264 exception rows/records, not 264 independent cases.
 
-**Evidence:** The codebase contains 334 passing automated tests, verified SHA-256 evidence artifacts, a live interactive web deployment, and transparent synthetic training data.
+**Evidence:** The codebase contains 334 passing automated tests, verified SHA-256 evidence artifacts, a documented Published Demo / Live Demonstration, and transparent synthetic training data.

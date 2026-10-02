@@ -13,7 +13,7 @@
 | **System Classification** | Professional Proof-of-Work · Training & Demonstration System |
 | **Dataset** | 100% Synthetic Training Data (FY2026 Model Dataset) |
 | **Technology Stack** | Django 5.2 LTS · PostgreSQL 16 · Gunicorn · WhiteNoise · Bootstrap 5.3 RTL · Chart.js |
-| **Quality Baseline** | 334/334 Automated Tests Passing (100%) · Zero Issues on Django Check |
+| **Quality Baseline** | 334/334 Automated Tests Passing (100%) · Zero Issues on Django Check · Release Candidate |
 | **License** | MIT License |
 
 ---

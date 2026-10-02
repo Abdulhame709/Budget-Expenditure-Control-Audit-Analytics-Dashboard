@@ -8,7 +8,7 @@
 | **ROLE** | **Internal Audit & Financial Review Professional / System Designer** |
 | **CONTEXT** | **Professional Proof-of-Work / Independent Training & Demonstration System** |
 | **DATASET** | **100% Synthetic Training Data** (FY2026 model dataset — no real employer or client data) |
-| **STATUS** | Release Candidate (RC) · Live Web System · Verified Baseline 334/334 Tests Pass |
+| **STATUS** | Release Candidate (RC) · Published Demo / Live Demonstration · Verified Baseline 334/334 Tests Pass |
 
 ---
 
@@ -62,16 +62,16 @@ A database-backed, audit analytics and financial expenditure control web system 
 ## 6. EVIDENCE
 1. **Source Code**: Fully documented Git repository with clean separation of code, migrations, and audit seeds.
 2. **Automated Test Suite**: 334 passing automated tests (281 unit/integration tests + 53 ground-truth dataset tests).
-3. **Ground Truth Verification**: Exact 100% match against 28 predetermined exceptions in `apps.audit_register.tests_dataset` (zero false positives, zero false negatives).
+3. **Ground Truth Verification**: Exact match against 28 Ground-Truth Control Exceptions in `apps.audit_register.tests_dataset` (zero false positives against the predefined Ground-Truth test set; zero false negatives within that test set).
 4. **Data Integrity & Checksums**: 7 published evidence artifacts verified with SHA-256 (`sha256sum -c evidence/checksums.txt` = 7/7 OK).
-5. **Live Web Application**: Running live web application accessible via HTTPS with full interactive capabilities.
+5. **Published Demo / Live Demonstration**: Public demonstration endpoint documented below; availability may vary by hosting state.
 
 ---
 
 ## 7. IMPACT
 *All impact metrics are strictly derived from verifiable system tests on the synthetic training dataset:*
-- **100% Population Audit Coverage**: Replaced manual sample-based testing with automated 100% evaluation of all 43 expenses and 9 procurement cases across 12 monthly periods.
-- **Deterministic Exception Capture**: Successfully surfaced all **28 control exceptions** spanning High (10), Medium (11), and Low (7) risk categories.
+- **100% Synthetic Training Dataset / Seeded Population Coverage**: Automated evaluation covered all 43 seeded expenses and 9 seeded procurement cases across 12 monthly periods; this is not evidence from a real institution.
+- **Deterministic Ground-Truth Capture**: Successfully matched all **28 Ground-Truth Control Exceptions** spanning High (10), Medium (11), and Low (7) risk categories. The full analytical output contains **264 exception rows/records**, not 264 independent cases.
 - **Zero Configuration Drift**: Achieved clean `manage.py check` (0 issues), zero pending migrations, and 100% idempotent data seeding.
 - **Full Audit Traceability**: 100% of sensitive operations (logins, imports, test executions, status overrides, and report exports) captured in the immutable Audit Trail with before/after diffs.
 
@@ -79,5 +79,5 @@ A database-backed, audit analytics and financial expenditure control web system 
 
 ## 8. LINK
 - **GitHub Repository**: `Abdulhame709/Budget-Expenditure-Control-Audit-Analytics-Dashboard`
-- **Working Branch**: `arena/01a0f1f4-budget-expenditure-control-aud` (synchronized with `main`)
-- **Live Demo Preview**: Available via Arena Live Web Application Preview (`http://0.0.0.0:8000` / HTTPS Proxy)
+- **Working Branch**: `main`
+- **Live Demo**: [Published Demo / Live Demonstration](https://auditdash-62j7lamg.manus.space/)

@@ -10,9 +10,9 @@
 | Evidence Type | Artifact / Location | Verification Method | Status |
 |:---|:---|:---|:---|
 | **Source Code** | GitHub Repository (`main` / working branch) | `git status` · `git log` | ✅ Verified clean HEAD |
-| **Live Web Demo** | Arena Live Preview (`0.0.0.0:8000` / HTTPS Proxy) | Browser navigation & HTTP test script | ✅ Active & Responsive |
+| **Published Demo / Live Demonstration** | https://auditdash-62j7lamg.manus.space/ | Public URL check when available | ⚠️ Hosting availability must be rechecked at presentation time |
 | **Automated Tests** | 334 tests across 11 test modules | `python manage.py test` | ✅ 334/334 PASS (100%) |
-| **Ground Truth Tests** | `apps.audit_register.tests_dataset` (53 tests) | Exact equality match (28 exceptions) | ✅ 53/53 PASS (0 errors) |
+| **Ground Truth Tests** | `apps.audit_register.tests_dataset` (53 tests) | Exact equality match against 28 Ground-Truth Control Exceptions | ✅ 53/53 PASS (0 errors) |
 | **Database Integrity** | 161 constraints in PostgreSQL catalog | SQL integrity check (0 orphaned rows) | ✅ Verified (PostgreSQL 16) |
 | **Synthetic Dataset** | `system/datasets/training.py` | `manage.py load_training_dataset` | ✅ 100% Idempotent |
 | **Published Proofs** | `evidence/checksums.txt` (7 files) | `sha256sum -c evidence/checksums.txt` | ✅ 7/7 OK |

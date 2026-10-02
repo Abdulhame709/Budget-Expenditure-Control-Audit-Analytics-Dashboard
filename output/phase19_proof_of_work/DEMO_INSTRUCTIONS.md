@@ -7,6 +7,8 @@
 
 ## 1. Available Demonstration Accounts
 
+> **Demo/Training only:** These seeded accounts and passwords are for synthetic demonstration data only. They are not production credentials. For public walkthroughs, use the lower-privilege `ds_auditor` account rather than the `admin` superuser account. No permissions or passwords were changed in PHASE 20B.
+
 | Username | Role | Password | Primary Permissions & Responsibilities |
 |:---|:---|:---|:---|
 | **`admin`** | Administrator | `Admin-Training-2026!` | Full administrative access, user/role management, and audit trail inspection. |
@@ -22,7 +24,7 @@
 1. **Login**: Navigate to `/accounts/login/` and log in with username **`ds_auditor`** and password `Dataset-Training-2026!`.
 2. **Dashboard**: View `/dashboard/` to observe real-time financial KPIs (Budget, Actuals, Variance, Utilization) and risk distributions.
 3. **Execute Engine**: Navigate to **إدارة النظام** $\rightarrow$ **الاختبارات الرقابية (المحرّك)** (`/audit/tests/`). Click the blue button **«تشغيل كل الاختبارات الرقابية»** (Run All Tests).
-   - *Result*: The 14 evaluators process the 43 synthetic transactions, identifying exactly 28 control exceptions.
+   - *Result*: The 14 evaluators process the 43 synthetic transactions, matching 28 Ground-Truth Control Exceptions against the predefined Ground-Truth test set. The full analytical output contains 264 exception rows/records, not 264 independent cases.
 4. **Exception Register**: Open **إدارة النظام** $\rightarrow$ **سجل الاستثناءات** (`/audit/exceptions/`). Filter by Risk Level (**عالي** / High) or by test code (e.g., `T-BUD-01`).
 5. **Manage Exception**: Click on an exception (e.g., `EXP-2026-0003`) to view detailed evidence, transaction context, and historical activity. Update the status from `Open` to `Acknowledged`.
 6. **Findings & Recommendations**: Navigate to **إدارة النظام** $\rightarrow$ **النتائج والتوصيات** (`/audit/findings/`) to view or draft formal management recommendations.

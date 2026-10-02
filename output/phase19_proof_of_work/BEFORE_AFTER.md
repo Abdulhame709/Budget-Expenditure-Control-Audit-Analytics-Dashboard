@@ -1,6 +1,6 @@
 # Before / After Transformation
 
-### Project Evolution: From Static Spreadsheet Prototype to Production-Ready Audit System
+### Project Evolution: From Static Spreadsheet Prototype to Production-Capable Training/Demo System
 
 ---
 
@@ -16,7 +16,7 @@
 ---
 
 ## 2. WHAT I BUILT (Working Database-Driven Web System)
-- Engineered a modular, production-ready web application powered by **Django 5.2 LTS** and **PostgreSQL 16**.
+- Engineered a modular, production-capable training/demo web system powered by **Django 5.2 LTS** and **PostgreSQL 16**.
 - Designed a relational data architecture covering Chart of Accounts, Departments, Fiscal Periods, Multi-version Budgets, Expenses, Procurement, and Governance.
 - Developed an automated **Audit Test Engine** containing 14 formal evaluators parameterized through database-driven thresholds.
 - Implemented a secure, 3-stage **Import Validation Pipeline** supporting Excel, CSV, and PDF extraction with atomic commit protections.
@@ -25,13 +25,13 @@
 
 ---
 
-## 3. AFTER (Live, Comprehensive Audit Analytics System)
-A complete, functioning live system delivering:
-1. **Relational Database**: Robust PostgreSQL storage with strict referential constraints, check constraints ($\text{Annual} = \sum \text{Months}$), and zero orphaned records.
+## 3. AFTER (Published Demo / Release Candidate Training System)
+A functioning Release Candidate demonstration system delivering:
+1. **Relational Database**: Robust PostgreSQL storage with strict referential constraints and check constraints ($\text{Annual} = \sum \text{Months}$).
 2. **Manual Entry**: Controlled, validated web forms for budgets, expenses, procurements, and reference master data.
 3. **Excel/CSV Import**: Multi-stage pipeline with preview, column mapping, row-by-row validation, and batch atomic creation.
 4. **PDF Review / Import**: Safe text extraction pipeline with data preview and manual confirmation before database insertion.
-5. **Audit Test Engine**: 1-click execution across complete transaction populations with reproducible, deterministic results.
+5. **Audit Test Engine**: 1-click execution across the seeded synthetic population with reproducible, deterministic results.
 6. **Exception Register**: Centralized catalog of control exceptions with full metadata, financial exposure tracking, and status monitoring.
 7. **Automated Risk Scoring**: Algorithmic classification into High, Medium, and Low risk tiers based on verifiable policy parameters.
 8. **Findings & Recommendations**: Formal auditor issue tracker linking root causes, control implications, and agreed management action plans.

@@ -21,7 +21,7 @@
 
 نظام داخلي (Internal Use) لمراقبة الموازنة مقابل التنفيذ (Budget vs Actual)، وتدقيق المصروفات والمشتريات، واكتشاف الاستثناءات وتصنيف المخاطر — بواجهة عربية RTL كاملة، ومحرك تدقيق من 14 اختبارًا آليًا، وتقارير قابلة للطباعة والتصدير.
 
-**الحالة**: Release Candidate (RC) · Live Web Demo Active · **المجموعة**: 334 اختبارًا آليًا ✅ (281 وحدة/تكامل + 53 ground-truth) · Django 5.2 LTS · PostgreSQL 16 حصريًا (لا SQLite).
+**الحالة**: Release Candidate (RC) · Published Demo / Live Demonstration · **المجموعة**: 334 اختبارًا آليًا ✅ (281 وحدة/تكامل + 53 ground-truth) · Django 5.2 LTS · PostgreSQL 16 حصريًا (لا SQLite).
 
 ---
 
@@ -33,9 +33,9 @@
 >
 > **Build:** I engineered a database-driven web application using Django 5.2 and PostgreSQL 16. The system incorporates role-based access control across 30 permissions, 14 automated audit test evaluators, a three-stage import pipeline (Excel/CSV/PDF), interactive KPI dashboards, 9 exportable reports, and full audit logging.
 >
-> **Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, flagging exactly 28 predetermined exceptions with zero false positives across high, medium, and low risk tiers.
+> **Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, matching 28 Ground-Truth Control Exceptions with zero false positives against the predefined Ground-Truth test set across high, medium, and low risk tiers. The full analytical output contains 264 exception rows/records; these are not 264 independent cases.
 >
-> **Evidence:** The codebase contains 334 passing automated tests, verified SHA-256 evidence artifacts, a live interactive web deployment, and transparent synthetic training data.
+> **Evidence:** The codebase contains 334 passing automated tests, verified SHA-256 evidence artifacts, a documented Published Demo / Live Demonstration, and transparent synthetic training data.
 
 *المستندات الكاملة لحزمة الـ Proof-of-Work متوفرة في المجلد [`output/phase19_proof_of_work/`](output/phase19_proof_of_work/):*
 - [`PROJECT_PROOF.md`](output/phase19_proof_of_work/PROJECT_PROOF.md) — وثيقة إثبات المشروع (Problem · Owner · Solution · Role · Tools · Evidence · Impact · Link)

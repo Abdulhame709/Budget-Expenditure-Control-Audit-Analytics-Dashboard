@@ -16,6 +16,8 @@ load_dotenv(BASE_DIR / ".env")
 # declared. An explicit mismatch is a startup error, never a silent downgrade.
 _known_environments = {"development", "staging", "production"}
 _settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "").rsplit(".", 1)[-1]
+if os.environ.get("VERCEL") and _settings_module == "_vercel_collectstatic_settings":
+    _settings_module = "production"
 _explicit_environment = os.environ.get("DJANGO_ENV", "").strip().lower()
 if _explicit_environment and _explicit_environment not in _known_environments:
     raise ImproperlyConfigured("DJANGO_ENV must be development, staging, or production.")

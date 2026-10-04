@@ -15,7 +15,11 @@ def main():
         else "config.settings.development"
     )
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", default_settings)
-    selected_environment = os.environ["DJANGO_SETTINGS_MODULE"].rsplit(".", 1)[-1]
+    selected_environment = (
+        "production"
+        if os.environ.get("VERCEL")
+        else os.environ["DJANGO_SETTINGS_MODULE"].rsplit(".", 1)[-1]
+    )
     os.environ.setdefault("DJANGO_ENV", selected_environment)
 
     from django.core.management import execute_from_command_line

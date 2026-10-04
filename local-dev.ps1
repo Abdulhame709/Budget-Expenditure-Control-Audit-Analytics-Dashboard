@@ -141,7 +141,11 @@ function Initialize-LocalEnvironment {
         }
     }
     $requirements = Get-Content (Join-Path $SystemDir "requirements.txt") |
-        Where-Object { $_ -and -not $_.TrimStart().StartsWith("#") -and $_.Trim() -ne "pgserver" }
+        Where-Object {
+            $_ -and
+            -not $_.TrimStart().StartsWith("#") -and
+            -not $_.TrimStart().StartsWith("pgserver")
+        }
     $pipArguments = @("-m", "pip", "install", "--disable-pip-version-check")
     if ($PackageIndexUrl) {
         $pipArguments += @("--index-url", $PackageIndexUrl)

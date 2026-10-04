@@ -8,7 +8,7 @@ whitenoise>=6.8
 gunicorn>=23.0
 # pgserver: bundles genuine PostgreSQL server binaries for local dev —
 # required because apt mirrors are blocked in this environment (documented Blocker).
-pgserver
+pgserver; sys_platform == "win32"
 # PHASE 8 — Import Pipeline (Excel/CSV/PDF; OCR stays optional)
 pandas>=2.2
 openpyxl>=3.1

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}استيراد جديد{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h1 class="h4 mb-3">عملية استيراد جديدة</h1>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <ol class="mb-3 text-muted small">
+          <li><strong>رفع</strong> الملف (CSV · Excel xlsx · PDF)</li>
+          <li><strong>استخراج</strong> الصفوف — ملفات PDF تُستخرج إلى صفوف ولا تدخل قاعدة البيانات مباشرة</li>
+          <li><strong>معاينة</strong> البيانات + <strong>مطابقة</strong> الأعمدة</li>
+          <li><strong>تحقق</strong>: إجمالي/صالح/غير صالح/مكرر + أخطاء وتحذيرات</li>
+          <li><strong>مراجعة الأخطاء</strong> ثم <strong>تأكيد المستخدم</strong></li>
+          <li><strong>تنفيذ</strong> الاستيراد + <strong>تسجيل</strong> كامل لعملية الاستيراد</li>
+        </ol>
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.target.id_for_label }}">{{ form.target.label }}</label>
+            {{ form.target }}
+            {{ form.target.errors }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.source_file.id_for_label }}">{{ form.source_file.label }}</label>
+            {{ form.source_file }}
+            <div class="form-text">حد أقصى 10 ميجابايت · الملف الأصلي يُحفظ ولا يُحذف أبدًا · OCR طبقة اختيارية وليست شرطًا.</div>
+            {{ form.source_file.errors }}
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">رفع واستخراج</button>
+            <a class="btn btn-outline-secondary" href="{% url 'imports:list' %}">إلغاء</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3 border-start border-info border-3">
+      <div class="card-body">
+        <div class="d-flex align-items-start gap-2">
+          <div class="fs-4">⬇️</div>
+          <div class="flex-grow-1">
+            <strong>قالب التنزيل — الأعمدة المطلوبة بالعربية</strong>
+            <p class="small text-muted mb-2">
+              نزّل قالب CSV جاهزًا لأي هدف؛ الصف الأول هو أسماء الأعمدة بالعربية
+              (✓ = عمود إلزامي)، والصف الثاني يوضح الإلزامي/الاختياري.
+              عبئ بياناتك أسفل الصف الثاني ثم ارفع الملف هنا.
+            </p>
+            <div class="d-flex flex-wrap gap-1">
+              {% for value, label in form.target.field.choices %}
+              <a class="btn btn-sm btn-outline-primary"
+                 href="{% url 'imports:template' value %}"
+                 title="تنزيل قالب: {{ label }}">{{ label }}</a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body small text-muted">
+        <strong>صيغ مدعومة:</strong> CSV (utf-8/cp1256 · فواصل , ; tab) ·
+        Excel xlsx (pandas + openpyxl) · PDF (pdfplumber — جداول ثم نص مقسّم؛
+        عند غياب المحتوى المنظم تظهر تحذيرات مع ذكر أن OCR اختياري).
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

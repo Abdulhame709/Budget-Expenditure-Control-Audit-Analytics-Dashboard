@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load attachments %}
+{% block title %}{{ finding.finding_code }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb" class="small mb-2">
+  <a href="{% url 'audit:cycle_hub' %}">دورة المعالجة</a> ←
+  <a href="{% url 'audit:findings_list' %}">النتائج</a> ←
+  <span dir="ltr">{{ finding.finding_code }}</span>
+</nav>
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="h4 mb-0">
+      {% if finding.risk_level == "High" %}<span class="badge text-bg-danger">High</span>
+      {% elif finding.risk_level == "Medium" %}<span class="badge text-bg-warning">Medium</span>
+      {% else %}<span class="badge text-bg-secondary">Low</span>{% endif %}
+      <span dir="ltr">{{ finding.finding_code }}</span> — {{ finding.title }}
+    </h1>
+    <div class="text-muted small">
+      الحالة: <strong>{{ finding.get_status_display }}</strong> ·
+      أنشأه {{ finding.created_by.username|default:"—" }} ·
+      <span dir="ltr">{{ finding.created_at|date:"Y-m-d H:i" }}</span>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if can_manage %}<a class="btn btn-outline-primary" href="{% url 'audit:finding_edit' finding.pk %}">تعديل / تحديث الحالة</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'audit:findings_list' %}">رجوع</a>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white"><strong>الحقول الرقابية القياسية</strong></div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-4">Criteria — المعيار</dt>
+          <dd class="col-8">{{ finding.criteria|linebreaksbr }}</dd>
+          <dt class="col-4">Condition — الوضع الفعلي</dt>
+          <dd class="col-8">{{ finding.condition|linebreaksbr }}</dd>
+          <dt class="col-4">Impact — الأثر</dt>
+          <dd class="col-8">{{ finding.impact|linebreaksbr }}</dd>
+          <dt class="col-4">Cause — السبب
+            {% if finding.cause_supported %}
+            <span class="badge text-bg-success">مدعوم بدليل</span>
+            {% elif finding.cause %}
+            <span class="badge text-bg-warning">غير مدعوم</span>
+            {% endif %}
+          </dt>
+          <dd class="col-8">{{ finding.cause|default:"— (لم يُدعم بدليل — متروك عمدًا)"|linebreaksbr }}</dd>
+          <dt class="col-4">Risk Level</dt>
+          <dd class="col-8">{{ finding.get_risk_level_display }}
+            <span class="text-muted small">— تُورَّث من أخطر استثناء مرتبط وقت الإنشاء؛ تُعدَّل يدويًا بمسؤولية المدقّق.</span></dd>
+          <dt class="col-4">Recommendation — التوصية</dt>
+          <dd class="col-8">{{ finding.recommendation|linebreaksbr }}</dd>
+          <dt class="col-4">Management Action — إجراء الإدارة</dt>
+          <dd class="col-8">{{ finding.management_action|default:"— بانتظار رد الإدارة"|linebreaksbr }}</dd>
+          <dt class="col-4">Status</dt>
+          <dd class="col-8">{{ finding.get_status_display }} {{ finding.status_note }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white"><strong>الاستثناءات المرتبطة (↔ Exception → Source → Test)</strong></div>
+      <div class="card-body small">
+        <ul class="mb-0">
+          {% for e in exceptions %}
+          <li class="mb-2">
+            <a href="{% url 'audit:exception_detail' e.pk %}" dir="ltr">[{{ e.test_code }}] استثناء #{{ e.pk }}</a>
+            — {{ e.title }} ({{ e.risk_level }} / {{ e.get_status_display }})
+            <div class="text-muted">{{ e.explanation|truncatechars:140 }}</div>
+            {% if e.source_type == "expense" %}
+            <a href="{% url 'expenses:detail' e.source_id %}" dir="ltr">← المصدر: مصروف #{{ e.source_id }}</a>
+            {% elif e.source_type == "procurement" %}
+            <a href="{% url 'procurement:detail' e.source_id %}" dir="ltr">← المصدر: مشتريات #{{ e.source_id }}</a>
+            {% endif %}
+            · <a href="{% url 'audit:tests_list' %}#{{ e.test_code }}" dir="ltr">← الاختبار {{ e.test_code }}</a>
+          </li>
+          {% empty %}
+          <li class="text-muted">لا استثناءات مرتبطة.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% attachment_section "audit_finding" finding.pk %}
+
+{% endblock %}

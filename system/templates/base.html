@@ -1,0 +1,214 @@
+{% load static %}{% load perms %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'ar' }}" dir="{% if LANGUAGE_CODE == 'en' %}ltr{% else %}rtl{% endif %}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ SYSTEM_NAME_AR }}{% endblock %}</title>
+  <script>
+    (() => {
+      const saved = localStorage.getItem("audit-ui-theme");
+      const preferred = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.dataset.theme = saved || preferred;
+    })();
+  </script>
+  <link rel="icon" type="image/png" href="{% static 'brand/auditdash-logo.png' %}">
+  <link href="{% static 'vendor/bootstrap/css/bootstrap.rtl.min.css' %}" rel="stylesheet">
+  <link href="{% static 'css/app.css' %}" rel="stylesheet">
+</head>
+<body class="app-shell d-flex flex-column min-vh-100">
+  {% if DEMO_NOTICE %}<div class="bg-warning text-dark text-center small py-1 border-bottom">
+    ⚠ {{ DEMO_NOTICE }}
+  </div>{% endif %}
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary app-navbar sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand app-brand" href="{% url 'home' %}">
+        <img src="{% static 'brand/auditdash-logo.png' %}" alt="" width="28" height="28"
+             class="brand-mark align-middle">
+        <span class="brand-copy"><strong>{% if LANGUAGE_CODE == 'en' %}Audit Control{% else %}التحليل الرقابي والموازنة{% endif %}</strong><small>{% if LANGUAGE_CODE == 'en' %}Financial Operations Platform{% else %}منصة العمليات والرقابة المالية{% endif %}</small></span>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="{% if LANGUAGE_CODE == 'en' %}Menu{% else %}القائمة{% endif %}">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="{% url 'home' %}">{% if LANGUAGE_CODE == 'en' %}Home{% else %}الرئيسية{% endif %}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'dashboard:index' %}">{% if LANGUAGE_CODE == 'en' %}Dashboard{% else %}لوحة المؤشرات{% endif %}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{% url 'reports:list' %}">{% if LANGUAGE_CODE == 'en' %}Reports{% else %}التقارير{% endif %}</a></li>
+          {% perm user "reference.view" as can_ref %}
+          {% perm user "budget.view" as can_budget %}
+          {% perm user "expenses.view" as can_exp %}
+          {% perm user "procurement.view" as can_proc %}
+          {% perm user "imports.view" as can_imports %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle {% if not can_ref %}disabled{% endif %}" href="#" role="button"
+               data-bs-toggle="dropdown" aria-expanded="false">{% if LANGUAGE_CODE == 'en' %}System Modules{% else %}وحدات النظام{% endif %}</a>
+            <ul class="dropdown-menu dropdown-menu-start">
+              {% if can_ref %}
+              <li><a class="dropdown-item" href="{% url 'reference:fiscal_year_list' %}">{% if LANGUAGE_CODE == 'en' %}Fiscal Years{% else %}السنوات المالية{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:period_list' %}">{% if LANGUAGE_CODE == 'en' %}Monthly Periods{% else %}الفترات الشهرية{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:department_list' %}">{% if LANGUAGE_CODE == 'en' %}Departments{% else %}الإدارات{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:account_list' %}">{% if LANGUAGE_CODE == 'en' %}Chart of Accounts{% else %}دليل الحسابات{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:expense_category_list' %}">{% if LANGUAGE_CODE == 'en' %}Expense Categories{% else %}تصنيفات المصروفات{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:supplier_list' %}">{% if LANGUAGE_CODE == 'en' %}Suppliers{% else %}الموردون{% endif %}</a></li>
+              {% if can_budget %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'budget:budget_list' %}">{% if LANGUAGE_CODE == 'en' %}Budget{% else %}الموازنة{% endif %}</a></li>
+              {% endif %}
+              {% if can_exp %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'expenses:list' %}">{% if LANGUAGE_CODE == 'en' %}Actual Expenses{% else %}المصروفات الفعلية{% endif %}</a></li>
+              {% endif %}
+              {% if can_proc %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'procurement:list' %}">{% if LANGUAGE_CODE == 'en' %}Procurement{% else %}المشتريات{% endif %}</a></li>
+              {% endif %}
+              {% if can_imports %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'imports:list' %}">{% if LANGUAGE_CODE == 'en' %}Import (Excel/CSV/PDF){% else %}الاستيراد (Excel/CSV/PDF){% endif %}</a></li>
+              {% endif %}
+              {% endif %}
+            </ul>
+          </li>
+          {% perm user "users.manage" as can_users %}
+          {% perm user "roles.manage" as can_roles %}
+          {% perm user "audittrail.view" as can_trail %}
+          {% perm user "audit.view" as can_audit %}
+          {% perm user "exceptions.view" as can_exc %}
+          {% perm user "findings.view" as can_find %}
+          {% if can_users or can_roles or can_trail or can_audit or can_exc or can_find %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+               aria-expanded="false">{% if LANGUAGE_CODE == 'en' %}Administration{% else %}إدارة النظام{% endif %}</a>
+            <ul class="dropdown-menu">
+              {% if can_users %}<li><a class="dropdown-item" href="{% url 'accounts:users_list' %}">{% if LANGUAGE_CODE == 'en' %}Users{% else %}المستخدمون{% endif %}</a></li>{% endif %}
+              {% if can_roles %}<li><a class="dropdown-item" href="{% url 'accounts:roles_list' %}">{% if LANGUAGE_CODE == 'en' %}Roles & Permissions{% else %}الأدوار والصلاحيات{% endif %}</a></li>{% endif %}
+              {% if can_audit %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'audit:cycle_hub' %}">{% if LANGUAGE_CODE == 'en' %}Audit Cycle{% else %}دورة المعالجة الرقابية{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'audit:tests_list' %}">{% if LANGUAGE_CODE == 'en' %}Audit Tests (Engine){% else %}الاختبارات الرقابية{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'audit:runs_list' %}">{% if LANGUAGE_CODE == 'en' %}Test Runs{% else %}تشغيلات الاختبارات{% endif %}</a></li>
+              {% endif %}
+              {% if can_exc %}
+              <li><a class="dropdown-item" href="{% url 'audit:exceptions_list' %}">{% if LANGUAGE_CODE == 'en' %}Exceptions Register{% else %}سجل الاستثناءات{% endif %}</a></li>
+              {% endif %}
+              {% if can_find %}
+              <li><a class="dropdown-item" href="{% url 'audit:findings_list' %}">{% if LANGUAGE_CODE == 'en' %}Findings & Recommendations{% else %}النتائج والتوصيات{% endif %}</a></li>
+              {% endif %}
+              {% if can_trail %}<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="{% url 'governance:audit_trail' %}">{% if LANGUAGE_CODE == 'en' %}Audit Trail{% else %}سجل التدقيق{% endif %}</a></li>{% endif %}
+            </ul>
+          </li>
+          {% endif %}
+        </ul>
+
+        <ul class="navbar-nav mb-2 mb-lg-0">
+          <li class="nav-item d-flex align-items-center nav-tool-item">
+            <button class="ui-action" type="button" data-theme-toggle
+                    title="{% if LANGUAGE_CODE == 'en' %}Switch theme{% else %}تبديل المظهر{% endif %}"
+                    aria-label="{% if LANGUAGE_CODE == 'en' %}Switch theme{% else %}تبديل المظهر{% endif %}">
+              <span data-theme-icon aria-hidden="true">◐</span>
+            </button>
+          </li>
+          {% if user.is_authenticated %}
+            <li class="nav-item d-flex align-items-center nav-tool-item">
+              <button class="ui-action" type="button" data-bs-toggle="modal" data-bs-target="#quickAccessModal"
+                      title="{% if LANGUAGE_CODE == 'en' %}Quick access (Ctrl+K){% else %}الوصول السريع (Ctrl+K){% endif %}"
+                      aria-label="{% if LANGUAGE_CODE == 'en' %}Quick access{% else %}الوصول السريع{% endif %}">⌘</button>
+            </li>
+            <li class="nav-item d-flex align-items-center">
+              <form method="post" action="{% url 'set_language' %}" class="m-0">
+                {% csrf_token %}
+                <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                <input name="language" type="hidden" value="{% if LANGUAGE_CODE == 'en' %}ar{% else %}en{% endif %}">
+                <button class="btn btn-sm btn-outline-light" type="submit" title="{% if LANGUAGE_CODE == 'en' %}التبديل إلى العربية{% else %}Switch to English{% endif %}">
+                  {% if LANGUAGE_CODE == 'en' %}العربية{% else %}English{% endif %}
+                </button>
+              </form>
+            </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle user-menu-link" href="#" role="button" data-bs-toggle="dropdown"
+                 aria-expanded="false"><span class="user-avatar">{{ user.username|slice:":1"|upper }}</span><span>{{ user.get_full_name|default:user.username }}</span></a>
+              <ul class="dropdown-menu dropdown-menu-start">
+                <li><a class="dropdown-item" href="{% url 'accounts:profile' %}">{% if LANGUAGE_CODE == 'en' %}Profile{% else %}الملف الشخصي{% endif %}</a></li>
+                <li><a class="dropdown-item" href="{% url 'accounts:password_change' %}">{% if LANGUAGE_CODE == 'en' %}Change password{% else %}تغيير كلمة المرور{% endif %}</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                  <form method="post" action="{% url 'accounts:logout' %}" class="m-0">
+                    {% csrf_token %}
+                    <button class="dropdown-item" type="submit">{% if LANGUAGE_CODE == 'en' %}Sign out{% else %}تسجيل الخروج{% endif %}</button>
+                  </form>
+                </li>
+              </ul>
+            </li>
+          {% else %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'accounts:login' %}">{% if LANGUAGE_CODE == 'en' %}Sign in{% else %}تسجيل الدخول{% endif %}</a></li>
+          {% endif %}
+        </ul>
+        <span class="environment-chip"><span></span>Operational</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid app-main flex-grow-1">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="إغلاق"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% if user.is_authenticated %}
+  <div class="modal fade" id="quickAccessModal" tabindex="-1" aria-labelledby="quickAccessTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content quick-access-modal">
+        <div class="modal-header">
+          <div>
+            <span class="page-kicker">{% if LANGUAGE_CODE == 'en' %}Command Center{% else %}مركز الأوامر{% endif %}</span>
+            <h2 class="modal-title fs-5" id="quickAccessTitle">{% if LANGUAGE_CODE == 'en' %}Quick access{% else %}انتقل بسرعة إلى وحدة النظام{% endif %}</h2>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        </div>
+        <div class="modal-body">
+          <div class="quick-search-wrap">
+            <span aria-hidden="true">⌕</span>
+            <input id="quickAccessSearch" class="form-control" type="search"
+                   placeholder="{% if LANGUAGE_CODE == 'en' %}Search modules...{% else %}ابحث في الوحدات...{% endif %}"
+                   autocomplete="off">
+            <kbd>Ctrl K</kbd>
+          </div>
+          <div class="quick-command-grid" id="quickCommandGrid">
+            <a class="quick-command" href="{% url 'dashboard:index' %}"><span>01</span><strong>لوحة المؤشرات</strong><small>المقاييس والتحليلات</small></a>
+            <a class="quick-command" href="{% url 'reports:list' %}"><span>02</span><strong>التقارير</strong><small>التقارير والتصدير</small></a>
+            {% if can_budget %}<a class="quick-command" href="{% url 'budget:budget_list' %}"><span>03</span><strong>الموازنة</strong><small>النسخ والبنود</small></a>{% endif %}
+            {% if can_exp %}<a class="quick-command" href="{% url 'expenses:list' %}"><span>04</span><strong>المصروفات</strong><small>القيود الفعلية</small></a>{% endif %}
+            {% if can_proc %}<a class="quick-command" href="{% url 'procurement:list' %}"><span>05</span><strong>المشتريات</strong><small>الطلبات والعروض</small></a>{% endif %}
+            {% if can_imports %}<a class="quick-command" href="{% url 'imports:list' %}"><span>06</span><strong>الاستيراد</strong><small>Excel وCSV وPDF</small></a>{% endif %}
+            {% if can_find %}<a class="quick-command" href="{% url 'audit:cycle_hub' %}"><span>07</span><strong>مركز التدقيق</strong><small>الدورة الرقابية</small></a>{% endif %}
+            {% if can_users %}<a class="quick-command" href="{% url 'accounts:users_list' %}"><span>08</span><strong>المستخدمون</strong><small>الحسابات والصلاحيات</small></a>{% endif %}
+          </div>
+          <div class="quick-empty" hidden>لا توجد وحدة مطابقة للبحث.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <button class="scroll-top" type="button" data-scroll-top aria-label="العودة إلى أعلى الصفحة">↑</button>
+
+  <footer class="app-footer small py-3 mt-auto">
+    <div class="container-fluid d-flex flex-wrap justify-content-between gap-2">
+      <span>{{ SYSTEM_NAME_EN }} — {{ SYSTEM_CONTEXT }}</span>
+      <span>Owner: {{ SYSTEM_OWNER }}</span>
+    </div>
+  </footer>
+
+  <script src="{% static 'vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

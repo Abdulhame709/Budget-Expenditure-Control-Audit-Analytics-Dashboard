@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}الأدوار والصلاحيات{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">الأدوار والصلاحيات</h1>
+<p class="text-muted small">البنية المعتمدة: صلاحية → دور → مستخدم. إضافة دور/صلاحية جديدة لا تتطلب تعديل الكود.</p>
+<div class="row g-3">
+  {% for role in roles %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-bold">{{ role.name_ar }}</span>
+        <span class="badge text-bg-dark font-monospace" dir="ltr">{{ role.code }}</span>
+      </div>
+      <div class="card-body">
+        <p class="small text-muted mb-2">{{ role.description }}</p>
+        <div class="small font-monospace" dir="ltr" style="line-height:1.9">
+          {% for rp in role.role_permissions.all %}
+            <span class="badge text-bg-light border">{{ rp.permission.code }}</span>
+          {% endfor %}
+        </div>
+        <div class="text-muted small mt-2">{{ role.role_permissions.count }} صلاحية</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+.git
+.venv
+system/.venv
+system/.pgsql
+system/staticfiles
+system/logs
+system/media
+system/.env
+.env
+__pycache__
+*.pyc

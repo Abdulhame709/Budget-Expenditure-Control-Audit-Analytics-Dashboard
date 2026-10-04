@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}دورة المعالجة الرقابية{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h1 class="h4 mb-0">دورة المعالجة الرقابية</h1>
+  <div class="text-muted small">
+    Audit Test → Exception → Risk Assessment → Finding → Recommendation → Status ·
+    نقطة الانطلاق للتنقّل: اللوحة ← الاستثناء ← المعاملة المصدر ← الاختبار ← النتيجة
+    <span class="badge text-bg-light border">ملخص تشغيلي مباشر من قاعدة البيانات</span>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- counters #}
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-2"><div class="card border-0 shadow-sm text-center">
+    <div class="card-body py-2"><div class="fs-5 fw-bold">{{ exc_total }}</div>
+    <div class="small text-muted">استثناءات</div></div></div></div>
+  <div class="col-6 col-md-2"><div class="card border-0 shadow-sm text-center border-start border-danger border-3">
+    <div class="card-body py-2"><div class="fs-5 fw-bold text-danger">{{ open_high }}</div>
+    <div class="small text-muted">خطر مرتفع مفتوح</div></div></div></div>
+  <div class="col-6 col-md-2"><div class="card border-0 shadow-sm text-center">
+    <div class="card-body py-2"><div class="fs-5 fw-bold">{{ find_total }}</div>
+    <div class="small text-muted">نتائج (Findings)</div></div></div></div>
+  <div class="col-6 col-md-2"><div class="card border-0 shadow-sm text-center border-start border-warning border-3">
+    <div class="card-body py-2"><div class="fs-5 fw-bold">{{ find_open }}</div>
+    <div class="small text-muted">نتائج غير مغلقة</div></div></div></div>
+  <div class="col-6 col-md-2"><div class="card border-0 shadow-sm text-center">
+    <div class="card-body py-2"><div class="fs-5 fw-bold">{{ tests_active }}</div>
+    <div class="small text-muted">اختبارات مفعّلة</div></div></div></div>
+  <div class="col-6 col-md-2"><div class="card border-0 shadow-sm text-center">
+    <div class="card-body py-2"><div class="fs-6 fw-bold" dir="ltr">{{ last_run.run_number|default:"—" }}</div>
+    <div class="small text-muted">آخر تشغيل</div></div></div></div>
+</div>
+
+<div class="row g-3">
+  {# ---------------------------------------------------------------- risk/status #}
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>الاستثناءات حسب الخطر (Risk: High/Medium/Low)</strong></div>
+      <div class="card-body small">
+        <ul class="mb-2">
+          <li>High: <strong>{{ exc_by_risk.High|default:0 }}</strong></li>
+          <li>Medium: <strong>{{ exc_by_risk.Medium|default:0 }}</strong></li>
+          <li>Low: <strong>{{ exc_by_risk.Low|default:0 }}</strong></li>
+        </ul>
+        <ul class="mb-0">
+          <li>مفتوح: <strong>{{ exc_by_status.open|default:0 }}</strong></li>
+          <li>قيد الدراسة: <strong>{{ exc_by_status.acknowledged|default:0 }}</strong></li>
+          <li>مُعالج: <strong>{{ exc_by_status.resolved|default:0 }}</strong></li>
+        </ul>
+        <div class="text-muted mt-2">منطق الخطر: مصفوفة 3×3 بسيطة وقابلة للتفسير
+          (أثر المبلغ × شدة الخلل — RR-01..RR-06) — <strong>لا AI/ML</strong>.</div>
+      </div>
+      <div class="card-footer bg-white">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'audit:exceptions_list' %}">سجل الاستثناءات ←</a>
+      </div>
+    </div>
+  </div>
+
+  {# ---------------------------------------------------------------- findings #}
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>النتائج والتوصيات (Findings)</strong></div>
+      <div class="card-body small">
+        <ul class="mb-0">
+          <li>مفتوح: <strong>{{ find_by_status.open|default:0 }}</strong></li>
+          <li>قيد المعالجة: <strong>{{ find_by_status.in_progress|default:0 }}</strong></li>
+          <li>مُغلق: <strong>{{ find_by_status.closed|default:0 }}</strong></li>
+        </ul>
+        <div class="text-muted mt-2">كل نتيجة: Criteria · Condition · Impact ·
+          Cause (فقط إن كان مدعومًا) · Risk · Recommendation · Management Action · Status.</div>
+      </div>
+      <div class="card-footer bg-white">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'audit:findings_list' %}">النتائج والتوصيات ←</a>
+      </div>
+    </div>
+  </div>
+
+  {# ---------------------------------------------------------------- chain #}
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white"><strong>سلسلة التنقّل الرقابية</strong></div>
+      <div class="card-body small">
+        <ol class="mb-2">
+          <li><a href="{% url 'audit:tests_list' %}">Audit Test</a> — الاختبارات</li>
+          <li><a href="{% url 'audit:runs_list' %}">Run</a> — التشغيلات والنتائج</li>
+          <li><a href="{% url 'audit:exceptions_list' %}">Exception</a> — مع تفسير الخطر والدليل</li>
+          <li>Source Transaction — رابط مباشر من كل استثناء</li>
+          <li><a href="{% url 'audit:findings_list' %}">Finding</a> — التوصية وإجراء الإدارة</li>
+        </ol>
+        <a class="btn btn-sm btn-success" href="{% url 'audit:run_start' %}">تشغيل سريع (من صفحة الاختبارات)</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

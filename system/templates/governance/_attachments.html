@@ -1,0 +1,64 @@
+{% if can_view %}
+<section class="card border-0 shadow-sm mt-3" id="attachments">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong>المرفقات (Attachments)</strong>
+    <span class="small text-muted">{{ atts|length }} ملف · رفع/عرض/تنزيل مع بيانات وصفية وتسجيل سجل تدقيق</span>
+  </div>
+  <div class="card-body">
+    {% if atts %}
+    <div class="table-responsive">
+      <table class="table table-sm small align-middle mb-0">
+        <thead class="table-light"><tr>
+          <th>العنوان / الملف</th><th>النوع</th><th>الحجم</th>
+          <th>رُفع بواسطة</th><th>وقت الرفع</th><th>الكيان المرتبط</th><th></th>
+        </tr></thead>
+        <tbody>
+          {% for a in atts %}
+          <tr>
+            <td>
+              {% if a.title %}<div>{{ a.title }}</div>{% endif %}
+              <span class="font-monospace" dir="ltr">{{ a.file.name }}</span>
+            </td>
+            <td dir="ltr">{{ a.content_type|default:"—" }}</td>
+            <td dir="ltr">{{ a.size_display }}</td>
+            <td>{{ a.uploaded_by.username|default:"—" }}</td>
+            <td dir="ltr">{{ a.uploaded_at|date:"Y-m-d H:i" }}</td>
+            <td><a href="{{ a.get_entity_link }}" dir="ltr">{{ a.get_entity_label }}</a></td>
+            <td class="text-nowrap">
+              <a class="btn btn-sm btn-outline-primary" target="_blank"
+                 href="{% url 'governance:attachment_view' a.pk %}">عرض</a>
+              <a class="btn btn-sm btn-outline-secondary"
+                 href="{% url 'governance:attachment_download' a.pk %}">تنزيل</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted small mb-2">لا مرفقات بعد.</p>
+    {% endif %}
+
+    {% if can_manage %}
+    <form method="post" action="{% url 'governance:attachment_upload' %}"
+          enctype="multipart/form-data" class="row g-2 align-items-end mt-2 no-print">
+      {% csrf_token %}
+      <input type="hidden" name="entity_type" value="{{ entity_type }}">
+      <input type="hidden" name="entity_id" value="{{ entity_id }}">
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <div class="col-md-4">
+        <label class="form-label small mb-1">ملف (≤10MB)</label>
+        <input type="file" name="file" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-1">عنوان (اختياري)</label>
+        <input type="text" name="title" class="form-control form-control-sm" maxlength="200">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-sm btn-primary w-100">رفع وربط</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}

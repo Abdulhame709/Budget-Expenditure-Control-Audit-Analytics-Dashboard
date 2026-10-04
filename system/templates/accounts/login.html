@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}تسجيل الدخول — {{ SYSTEM_NAME_AR }}{% endblock %}
+{% block content %}
+<div class="login-stage">
+  <div class="login-intro">
+    <span class="page-kicker text-white-50">منصة العمليات المالية</span>
+    <h1>رقابة أوضح.<br>قرارات أدق.</h1>
+    <p>إدارة الموازنة والمصروفات والمشتريات والتدقيق من مساحة عمل موحّدة وآمنة.</p>
+    <div class="login-features"><span>PostgreSQL محلي</span><span>سجل تدقيق</span><span>صلاحيات دقيقة</span></div>
+  </div>
+  <div class="card login-card">
+    <div class="card-body p-4 p-lg-5">
+      <div class="login-brand"><img src="{% static 'brand/auditdash-logo.png' %}" alt=""><div><strong>مرحبًا بعودتك</strong><small>أدخل بيانات حسابك للمتابعة</small></div></div>
+
+      <form method="post" action="{% url 'accounts:login' %}{% if next %}?next={{ next }}{% endif %}">
+        {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>
+        {% endif %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.username.id_for_label }}">اسم المستخدم أو البريد الإلكتروني</label>
+          {{ form.username }}
+          {% if form.username.errors %}<div class="text-danger small">{{ form.username.errors }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+          {{ form.password }}
+          {% if form.password.errors %}<div class="text-danger small">{{ form.password.errors }}</div>{% endif %}
+        </div>
+        <button class="btn btn-primary w-100 py-2" type="submit">دخول آمن إلى النظام</button>
+      </form>
+      <p class="text-center small mt-3 mb-0">
+        ليس لديك حساب؟ <a href="{% url 'accounts:register' %}">إنشاء حساب بالبريد الإلكتروني</a>
+      </p>
+      <p class="login-security">جلسة مشفّرة · كلمات المرور لا تُخزَّن نصًا صريحًا</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

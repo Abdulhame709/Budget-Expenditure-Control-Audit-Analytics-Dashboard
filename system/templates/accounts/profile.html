@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}الملف الشخصي{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><span class="page-kicker">إعدادات الحساب</span><h1>الملف الشخصي</h1><p>راجع معلومات الحساب والأدوار والصلاحيات المسندة إليك.</p></div>
+  <a class="btn btn-primary" href="{% url 'accounts:password_change' %}">تغيير كلمة المرور</a>
+</div>
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">الحساب</div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5">اسم المستخدم</dt><dd class="col-7 font-monospace" dir="ltr">{{ page_user.username }}</dd>
+          <dt class="col-5">الاسم الكامل</dt><dd class="col-7">{{ page_user.full_name|default:"—" }}</dd>
+          <dt class="col-5">المسمى الوظيفي</dt><dd class="col-7">{{ page_user.job_title|default:"—" }}</dd>
+          <dt class="col-5">نوع الحساب</dt>
+          <dd class="col-7">
+            <span class="badge text-bg-success">تشغيلي</span>
+          </dd>
+          <dt class="col-5">آخر دخول</dt><dd class="col-7">{{ page_user.last_login|default:"—" }}</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white fw-bold">أدواري وصلاحياتي</div>
+      <div class="card-body">
+        {% for r in roles %}
+          <span class="badge text-bg-primary mb-2">{{ r.role.name_ar }} <span dir="ltr">({{ r.role.code }})</span></span>
+        {% empty %}
+          <span class="text-muted small">لا توجد أدوار مُسندة.</span>
+        {% endfor %}
+        <div class="mt-2 small font-monospace" dir="ltr" style="line-height:1.9">
+          {% for c in codes %}<span class="badge text-bg-light border">{{ c }}</span> {% endfor %}
+        </div>
+        <p class="text-muted small mt-2 mb-0">لقطة الصلاحيات الخاصة بحسابك فقط — لا تُعرض بيانات حسابات أخرى هنا (Object-Level).</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

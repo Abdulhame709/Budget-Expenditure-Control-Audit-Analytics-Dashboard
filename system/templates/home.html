@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{% if LANGUAGE_CODE == 'en' %}Home{% else %}الرئيسية{% endif %} — {% if LANGUAGE_CODE == 'en' %}{{ SYSTEM_NAME_EN }}{% else %}{{ SYSTEM_NAME_AR }}{% endif %}{% endblock %}
+{% block content %}
+<section class="home-hero mb-4">
+  <div>
+    <span class="home-eyebrow">{% if LANGUAGE_CODE == 'en' %}Financial Control & Budget Platform{% else %}منصة الرقابة المالية وإدارة الموازنة{% endif %}</span>
+    <h1 class="display-6 fw-bold mb-0">{% if LANGUAGE_CODE == 'en' %}{{ SYSTEM_NAME_EN }}{% else %}{{ SYSTEM_NAME_AR }}{% endif %}</h1>
+  </div>
+  <div class="home-hero-status">
+    <span class="status-dot {% if db_ok %}is-online{% else %}is-offline{% endif %}"></span>
+    {% if db_ok %}{% if LANGUAGE_CODE == 'en' %}System online{% else %}النظام متاح{% endif %}{% else %}{% if LANGUAGE_CODE == 'en' %}Data connection down{% else %}اتصال البيانات متوقف{% endif %}{% endif %}
+  </div>
+</section>
+
+<section class="row g-3 mb-4">
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="status-card h-100">
+      <div class="status-card-head">
+        <span class="status-icon database-icon">DB</span>
+        <span class="badge {% if db_ok %}text-bg-success{% else %}text-bg-danger{% endif %}">{% if db_ok %}{% if LANGUAGE_CODE == 'en' %}Connected{% else %}متصل{% endif %}{% else %}{% if LANGUAGE_CODE == 'en' %}Offline{% else %}غير متصل{% endif %}{% endif %}</span>
+      </div>
+      <div class="status-label">{% if LANGUAGE_CODE == 'en' %}Core Database{% else %}قاعدة البيانات الرئيسية{% endif %}</div>
+      <div class="status-value">{% if LANGUAGE_CODE == 'en' %}Local PostgreSQL{% else %}PostgreSQL محلي{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="status-card h-100">
+      <div class="status-card-head">
+        <span class="status-icon cloud-icon">S</span>
+        {% if cloud_status == "connected" %}
+          <span class="badge text-bg-success">{% if LANGUAGE_CODE == 'en' %}Connected{% else %}متصل{% endif %}</span>
+        {% elif cloud_status == "error" %}
+          <span class="badge text-bg-danger">{% if LANGUAGE_CODE == 'en' %}Connection error{% else %}خطأ اتصال{% endif %}</span>
+        {% else %}
+          <span class="badge text-bg-warning">{% if LANGUAGE_CODE == 'en' %}Awaiting link setup{% else %}بانتظار بيانات الربط{% endif %}</span>
+        {% endif %}
+      </div>
+      <div class="status-label">{% if LANGUAGE_CODE == 'en' %}Cloud Storage (Optional){% else %}التخزين السحابي المؤقت{% endif %}</div>
+      <div class="status-value">{% if LANGUAGE_CODE == 'en' %}Supabase{% else %}Supabase{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="status-card h-100">
+      <div class="status-card-head">
+        <span class="status-icon mode-icon">OP</span>
+        <span class="badge text-bg-primary">{% if LANGUAGE_CODE == 'en' %}Operational{% else %}تشغيلي{% endif %}</span>
+      </div>
+      <div class="status-label">{% if LANGUAGE_CODE == 'en' %}System Mode{% else %}وضع النظام{% endif %}</div>
+      <div class="status-value">{% if LANGUAGE_CODE == 'en' %}Operational{% else %}Operational{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="status-card h-100">
+      <div class="status-card-head">
+        <span class="status-icon records-icon">#</span>
+        <span class="badge text-bg-light border text-dark">{% if LANGUAGE_CODE == 'en' %}Live data{% else %}بيانات فعلية{% endif %}</span>
+      </div>
+      <div class="status-label">{% if LANGUAGE_CODE == 'en' %}Records Snapshot{% else %}ملخص السجلات{% endif %}</div>
+      <div class="status-value">{{ record_counts.expenses }} {% if LANGUAGE_CODE == 'en' %}Expenses{% else %}مصروف{% endif %}</div>
+    </div>
+  </div>
+</section>
+
+<section class="workspace-panel">
+  <div class="workspace-heading">
+    <div>
+      <span class="home-eyebrow text-primary">{% if LANGUAGE_CODE == 'en' %}Workspaces{% else %}مساحات العمل{% endif %}</span>
+      <h2 class="h4 fw-bold mb-1">{% if LANGUAGE_CODE == 'en' %}Quick Access to Modules{% else %}الوصول السريع إلى وحدات النظام{% endif %}</h2>
+      
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-12 col-md-6 col-xl-3">
+      <a class="workspace-card" href="{% url 'dashboard:index' %}">
+        <span class="workspace-number">01</span>
+        <h3>{% if LANGUAGE_CODE == 'en' %}KPIs & Analytics{% else %}المؤشرات والتحليلات{% endif %}</h3>
+        <p>{% if LANGUAGE_CODE == 'en' %}Track budget vs actual, utilization and risk.{% else %}مراقبة الموازنة مقابل الفعلي ونسب الاستخدام والمخاطر.{% endif %}</p>
+        <span class="workspace-link">{% if LANGUAGE_CODE == 'en' %}Open dashboard →{% else %}فتح لوحة المؤشرات ←{% endif %}</span>
+      </a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <a class="workspace-card" href="{% url 'budget:budget_list' %}">
+        <span class="workspace-number">02</span>
+        <h3>{% if LANGUAGE_CODE == 'en' %}Budget & Expenses{% else %}الموازنة والمصروفات{% endif %}</h3>
+        <p>{% if LANGUAGE_CODE == 'en' %}Manage budget versions, actuals and variance.{% else %}إدارة نسخ الموازنة ومراجعة المصروفات الفعلية والانحرافات.{% endif %}</p>
+        <span class="workspace-link">{% if LANGUAGE_CODE == 'en' %}Open budget →{% else %}فتح الموازنة ←{% endif %}</span>
+      </a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <a class="workspace-card" href="{% url 'audit:cycle_hub' %}">
+        <span class="workspace-number">03</span>
+        <h3>{% if LANGUAGE_CODE == 'en' %}Audit & Exceptions{% else %}التدقيق والاستثناءات{% endif %}</h3>
+        <p>{% if LANGUAGE_CODE == 'en' %}Run controls and follow up exceptions & findings.{% else %}تشغيل الضوابط المعتمدة ومتابعة الاستثناءات والنتائج.{% endif %}</p>
+        <span class="workspace-link">{% if LANGUAGE_CODE == 'en' %}Open audit hub →{% else %}فتح مركز التدقيق ←{% endif %}</span>
+      </a>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <a class="workspace-card" href="{% url 'imports:list' %}">
+        <span class="workspace-number">04</span>
+        <h3>{% if LANGUAGE_CODE == 'en' %}Import & Integration{% else %}الاستيراد والتكامل{% endif %}</h3>
+        <p>{% if LANGUAGE_CODE == 'en' %}Import reference, budget and transaction data with validation.{% else %}استيراد البيانات المرجعية والموازنات والمعاملات بعد التحقق.{% endif %}</p>
+        <span class="workspace-link">{% if LANGUAGE_CODE == 'en' %}Open import hub →{% else %}فتح مركز الاستيراد ←{% endif %}</span>
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

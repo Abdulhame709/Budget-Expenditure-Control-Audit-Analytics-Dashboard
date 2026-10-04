@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load report_tags %}
+{% block title %}{% if LANGUAGE_CODE == 'en' %}Reports{% else %}التقارير{% endif %}{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h1 class="h4 mb-0">{% if LANGUAGE_CODE == 'en' %}Reports{% else %}نظام التقارير{% endif %}</h1>
+  <div class="text-muted small">
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for r in reports %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body report-card-body">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <h2 class="h6 mb-0 fw-semibold">
+            {% if LANGUAGE_CODE == 'en' %}{{ r.title }}{% else %}{{ r.title_ar }}{% endif %}
+          </h2>
+          <span class="badge text-bg-light border report-num" dir="ltr">#{{ forloop.counter }}</span>
+        </div>
+        <p class="small text-muted mb-2">
+          {% if LANGUAGE_CODE == 'en' %}{{ r.description_en|default:r.description }}{% else %}{{ r.description_ar|default:r.description }}{% endif %}
+        </p>
+        <div class="small mb-3 d-flex flex-wrap gap-1">
+          {% if LANGUAGE_CODE != 'en' %}<span class="text-muted">الفلاتر:</span>{% endif %}
+          {% for f in r.filters %}<span class="badge rounded-pill report-filter-chip">{% filterchip f %}</span>{% endfor %}
+        </div>
+        <a class="btn btn-sm btn-primary report-open-btn" href="{% url 'reports:detail' r.slug %}">
+          {% if LANGUAGE_CODE == 'en' %}Open report →{% else %}فتح التقرير ←{% endif %}
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

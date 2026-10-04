@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{% if creating %}اختبار جديد{% else %}تعديل {{ test.test_code }}{% endif %}{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-9">
+    <h1 class="h4 mb-3">
+      {% if creating %}تعريف اختبار رقابي جديد{% else %}تعديل الاختبار {{ test.test_code }}{% endif %}
+    </h1>
+
+    {% if not IS_OPERATIONAL_MODE %}
+    <div class="alert alert-warning small">هذه البيئة غير تشغيلية؛ راجع العتبات والسياسات قبل اعتماد الاختبار.</div>
+    {% endif %}
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label" for="{{ form.test_code.id_for_label }}">{{ form.test_code.label }}</label>
+              {{ form.test_code }}{{ form.test_code.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+              {{ form.name }}{{ form.name.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="{{ form.domain.id_for_label }}">{{ form.domain.label }}</label>
+              {{ form.domain }}{{ form.domain.errors }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.objective.id_for_label }}">{{ form.objective.label }}</label>
+              {{ form.objective }}{{ form.objective.errors }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.rule_text.id_for_label }}">{{ form.rule_text.label }}</label>
+              {{ form.rule_text }}{{ form.rule_text.errors }}
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.parameters_json.id_for_label }}">{{ form.parameters_json.label }}</label>
+              {{ form.parameters_json }}
+              <div class="form-text">{{ form.parameters_json.help_text }}</div>
+              {{ form.parameters_json.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.data_source.id_for_label }}">{{ form.data_source.label }}</label>
+              {{ form.data_source }}{{ form.data_source.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.engine_key.id_for_label }}">{{ form.engine_key.label }}</label>
+              {{ form.engine_key }}{{ form.engine_key.errors }}
+              <div class="form-text">المنفّذ مسجّل في الكود؛ الاختبار الجديد يستدعي منطقًا موجودًا بمعاملات مستقلة.</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.expected_result.id_for_label }}">{{ form.expected_result.label }}</label>
+              {{ form.expected_result }}{{ form.expected_result.errors }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.exception_type.id_for_label }}">{{ form.exception_type.label }}</label>
+              {{ form.exception_type }}{{ form.exception_type.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="{{ form.default_risk.id_for_label }}">{{ form.default_risk.label }}</label>
+              {{ form.default_risk }}{{ form.default_risk.errors }}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">&nbsp;</label>
+              <div class="form-check ms-2">
+                {{ form.is_active }}
+                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">{{ form.is_active.label }}</label>
+              </div>
+              <div class="form-check ms-2" {% if IS_OPERATIONAL_MODE %}hidden{% endif %}>
+                {{ form.synthetic_rule }}
+                <label class="form-check-label" for="{{ form.synthetic_rule.id_for_label }}">{{ form.synthetic_rule.label }}</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="{{ form.auditor_action.id_for_label }}">{{ form.auditor_action.label }}</label>
+              {{ form.auditor_action }}{{ form.auditor_action.errors }}
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-3">
+            <button class="btn btn-primary" type="submit">حفظ</button>
+            <a class="btn btn-outline-secondary" href="{% url 'audit:tests_list' %}">رجوع</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

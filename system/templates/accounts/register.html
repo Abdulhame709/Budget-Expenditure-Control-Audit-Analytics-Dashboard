@@ -1,0 +1,57 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}إنشاء حساب — {{ SYSTEM_NAME_AR }}{% endblock %}
+{% block content %}
+<div class="login-stage">
+  <div class="login-intro">
+    <span class="page-kicker text-white-50">انضم إلى المنصة</span>
+    <h1>حساب جديد.<br>بخطوة واحدة.</h1>
+    <p>أنشئ حسابك بالبريد الإلكتروني — تُمنح صلاحية استعراض المشروع تلقائيًا.</p>
+    <div class="login-features"><span>وصول فوري</span><span>صلاحية استعراض</span><span>ترقية لاحقًا</span></div>
+  </div>
+  <div class="card login-card">
+    <div class="card-body p-4 p-lg-5">
+      <div class="login-brand">
+        <img src="{% static 'brand/auditdash-logo.png' %}" alt="">
+        <div><strong>إنشاء حساب</strong><small>سجّل بالبريد الإلكتروني</small></div>
+      </div>
+
+      <form method="post" action="{% url 'accounts:register' %}">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger py-2 small">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.full_name.id_for_label }}">{{ form.full_name.label }}</label>
+          {{ form.full_name }}
+          {% if form.full_name.errors %}<div class="text-danger small">{{ form.full_name.errors }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+          {{ form.email }}
+          <div class="form-text small">{{ form.email.help_text }}</div>
+          {% if form.email.errors %}<div class="text-danger small">{{ form.email.errors }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.password1.id_for_label }}">{{ form.password1.label }}</label>
+          {{ form.password1 }}
+          <div class="form-text small">{{ form.password1.help_text }}</div>
+          {% if form.password1.errors %}<div class="text-danger small">{{ form.password1.errors }}</div>{% endif %}
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.password2.id_for_label }}">{{ form.password2.label }}</label>
+          {{ form.password2 }}
+          {% if form.password2.errors %}<div class="text-danger small">{{ form.password2.errors }}</div>{% endif %}
+        </div>
+
+        <button class="btn btn-primary w-100 py-2" type="submit">إنشاء الحساب والدخول</button>
+      </form>
+
+      <p class="text-center small mt-3 mb-0">
+        لديك حساب؟ <a href="{% url 'accounts:login' %}">تسجيل الدخول</a>
+      </p>
+      <p class="login-security">الحساب الجديد يحصل على صلاحية «استعراض فقط» — يمكن لمدير النظام ترقيتها لاحقًا.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

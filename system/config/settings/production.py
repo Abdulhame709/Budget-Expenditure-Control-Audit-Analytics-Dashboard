@@ -2,6 +2,9 @@
 import os
 from django.core.exceptions import ImproperlyConfigured
 
+os.environ.setdefault("SYSTEM_MODE", "operational")
+os.environ.setdefault("DJANGO_ALLOW_SYNTHETIC_DATASET", "false")
+
 from .base import *  # noqa: F401,F403
 
 DEBUG = False
@@ -60,5 +63,4 @@ LOGGING["handlers"].pop("file", None)
 LOGGING["root"]["handlers"] = ["console"]
 
 ALLOW_SELF_REGISTRATION = False
-SYSTEM_MODE = "operational"
 

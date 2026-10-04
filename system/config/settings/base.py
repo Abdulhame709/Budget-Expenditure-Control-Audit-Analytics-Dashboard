@@ -4,6 +4,7 @@ Approved architecture: Django + PostgreSQL (D-01) — no SQLite, ever.
 """
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
@@ -123,6 +124,13 @@ if IS_SECURE_ENVIRONMENT:
             "Staging/production DATABASE_URL must require PostgreSQL TLS."
         )
 DATABASES = {"default": _database_config}
+_database_host = (urlparse(DATABASE_URL).hostname or "").lower()
+if "supabase.com" in _database_host:
+    DATABASE_PLATFORM_LABEL = "Supabase PostgreSQL سحابي"
+elif IS_SECURE_ENVIRONMENT:
+    DATABASE_PLATFORM_LABEL = "PostgreSQL سحابي"
+else:
+    DATABASE_PLATFORM_LABEL = "PostgreSQL محلي"
 SUPABASE_PROJECT_REF = os.environ.get("SUPABASE_PROJECT_REF", "").strip()
 SUPABASE_DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "").strip()
 if SUPABASE_DATABASE_URL:

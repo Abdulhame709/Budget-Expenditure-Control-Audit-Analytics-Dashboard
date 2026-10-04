@@ -21,6 +21,8 @@ from apps.imports import services as svc
 from apps.imports.forms import ImportUploadForm, MappingForm
 from apps.imports.models import ImportJob
 
+DETAILED_SHEET_PREVIEW_LIMIT = 25
+
 
 def _fail_extract(job: ImportJob, exc: ValidationError, request) -> None:
     job.status = ImportJob.STATUS_FAILED
@@ -138,6 +140,21 @@ def import_detail(request, pk):
              "cells": [r["source"].get(h, "") for h in job.headers]}
             for r in job.rows[:10]
         ]
+    detailed_sheets = []
+    if job.target == ImportJob.TARGET_DETAILED_BUDGET:
+        for sheet in job.detailed_sheets.all():
+            row_count = len(sheet.rows)
+            detailed_sheets.append({
+                "pk": sheet.pk,
+                "name": sheet.name,
+                "display_title": sheet.display_title,
+                "order": sheet.order,
+                "headers": sheet.headers,
+                "rows": sheet.rows[:DETAILED_SHEET_PREVIEW_LIMIT],
+                "row_count": row_count,
+                "is_truncated": row_count > DETAILED_SHEET_PREVIEW_LIMIT,
+                "sheet_total": sheet.sheet_total,
+            })
     context = {
         "job": job,
         "counts": job.summary_counts,
@@ -148,8 +165,8 @@ def import_detail(request, pk):
         "target_fields": svc.get_target_fields(job.target),
         "header_labels": svc.header_labels(job.headers, job.target)
         if job.headers else {},
-        "detailed_sheets": list(job.detailed_sheets.all())
-        if job.target == ImportJob.TARGET_DETAILED_BUDGET else [],
+        "detailed_sheets": detailed_sheets,
+        "detailed_sheet_preview_limit": DETAILED_SHEET_PREVIEW_LIMIT,
     }
     return render(request, "imports/detail.html", context)
 

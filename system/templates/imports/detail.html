@@ -215,7 +215,7 @@
           <button class="accordion-button py-2 {% if not forloop.first %}collapsed{% endif %}" type="button"
                   data-bs-toggle="collapse" data-bs-target="#sheet-body-{{ s.pk }}">
             <span class="fw-semibold">{{ s.order }}. {{ s.name }}</span>
-            <span class="badge text-bg-secondary ms-2 small">{{ s.rows|length }} صف · {{ s.headers|length }} عمود</span>
+            <span class="badge text-bg-secondary ms-2 small">{{ s.row_count }} صف · {{ s.headers|length }} عمود</span>
             {% if s.sheet_total %}<span class="badge text-bg-success ms-2 small">الإجمالي: {{ s.sheet_total|numfmt }}</span>{% endif %}
           </button>
         </h2>
@@ -223,6 +223,11 @@
              data-bs-parent="#detailedSheets">
           <div class="accordion-body p-0">
             <div class="table-responsive" style="max-height: 380px;">
+              {% if s.is_truncated %}
+              <div class="alert alert-info rounded-0 border-0 border-bottom mb-0 small">
+                تُعرض أول {{ detailed_sheet_preview_limit }} صف لتحسين سرعة الصفحة؛ الملف الأصلي وكامل البيانات محفوظان في سجل الاستيراد.
+              </div>
+              {% endif %}
               <table class="table table-sm table-striped table-bordered mb-0 small sheet-table">
                 <thead>
                   <tr class="sheet-title-row">

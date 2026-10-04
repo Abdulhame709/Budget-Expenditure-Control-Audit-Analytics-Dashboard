@@ -12,7 +12,7 @@ from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal
 
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.shortcuts import render
 
 from apps.accounts.permissions import require_permission
@@ -162,9 +162,14 @@ def dashboard(request):
                 "amount": e.amount,
             })
 
-    exc_count = exc_qs.count()
-    high_count = exc_qs.filter(risk_level="High").count()
-    proc_count = exc_qs.filter(source_type="procurement").count()
+    exception_summary = exc_qs.aggregate(
+        total=Count("id"),
+        high=Count("id", filter=Q(risk_level="High")),
+        procurement=Count("id", filter=Q(source_type="procurement")),
+    )
+    exc_count = exception_summary["total"]
+    high_count = exception_summary["high"]
+    proc_count = exception_summary["procurement"]
 
     kpis = {
         "effective_budget": eff_budget,

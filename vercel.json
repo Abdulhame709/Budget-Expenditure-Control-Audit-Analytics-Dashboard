@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "django",
+  "regions": ["icn1"],
   "env": {
     "DJANGO_SETTINGS_MODULE": "config.settings.production",
     "DJANGO_ENV": "production"

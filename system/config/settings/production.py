@@ -47,8 +47,20 @@ def _is_exact_host(value: str) -> bool:
     return len(labels) >= 2 and all(_HOST_LABEL.fullmatch(label) for label in labels)
 
 
-if os.environ.get("VERCEL_URL"):
-    ALLOWED_HOSTS = [os.environ["VERCEL_URL"].strip().lower().rstrip(".")]
+_vercel_url = os.environ.get("VERCEL_URL", "").strip().lower().rstrip(".")
+if _vercel_url:
+    # Strip protocol prefix if present
+    if _vercel_url.startswith("https://"):
+        _vercel_url = _vercel_url[8:]
+    elif _vercel_url.startswith("http://"):
+        _vercel_url = _vercel_url[7:]
+    # Strip trailing slash and port
+    _vercel_url = _vercel_url.rstrip("/")
+    if ":" in _vercel_url:
+        _vercel_url = _vercel_url.split(":")[0]
+    ALLOWED_HOSTS = [_vercel_url]
+    # Ensure CSRF matches
+    CSRF_TRUSTED_ORIGINS = [f"https://{_vercel_url}"]
 if not ALLOWED_HOSTS:
     raise ImproperlyConfigured(
         "DJANGO_ALLOWED_HOSTS must list exact staging/production hostnames."
@@ -132,6 +144,7 @@ LOGGING["root"]["handlers"] = ["console"]
 
 # Production default: self-registration disabled unless explicitly enabled.
 ALLOW_SELF_REGISTRATION = False
+
 
 
 

@@ -1,16 +1,16 @@
 {
   "version": 2,
   "name": "budget-audit-analytics",
-  "buildCommand": "pip install -r system/requirements.txt && python system/manage.py collectstatic --noinput",
-  "outputDirectory": "system/staticfiles",
-  "installCommand": "pip install -r system/requirements.txt",
-  "functions": {
-    "system/vercel_wsgi.py": {
-      "runtime": "python3.11",
-      "memory": 1024,
-      "maxDuration": 30
+  "builds": [
+    {
+      "src": "system/vercel_wsgi.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "system/staticfiles/**",
+      "use": "@vercel/static"
     }
-  },
+  ],
   "routes": [
     { "src": "/static/(.*)", "dest": "/static/$1" },
     { "src": "/media/(.*)", "dest": "/media/$1" },

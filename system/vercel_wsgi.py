@@ -1,17 +1,20 @@
-# Vercel WSGI entry point
-# This file tells Vercel how to start the Django application
-
 import os
 import sys
 from pathlib import Path
 
-# Add system directory to path
-BASE_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(BASE_DIR))
+# Add system/ to Python path
+sys.path.insert(0, str(Path(__file__).parent))
 
-# Set production settings
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.production")
 
-from django.core.wsgi import get_wsgi_application
+# Run collectstatic if staticfiles missing
+static_dir = Path(__file__).parent / "staticfiles"
+if not static_dir.exists() or not any(static_dir.iterdir()):
+    try:
+        from django.core.management import execute_from_command_line
+        execute_from_command_line(["manage.py", "collectstatic", "--noinput", "--verbosity", "0"])
+    except Exception as e:
+        print(f"collectstatic warning: {e}")
 
+from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()

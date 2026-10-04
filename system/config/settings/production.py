@@ -34,7 +34,7 @@ else:
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"
     },
 }
 
@@ -61,3 +61,4 @@ LOGGING["root"]["handlers"] = ["console"]
 
 ALLOW_SELF_REGISTRATION = False
 SYSTEM_MODE = "operational"
+

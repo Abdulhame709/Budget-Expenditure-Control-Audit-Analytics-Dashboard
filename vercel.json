@@ -5,10 +5,6 @@
     {
       "src": "system/vercel_wsgi.py",
       "use": "@vercel/python"
-    },
-    {
-      "src": "system/staticfiles/**",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -19,5 +15,11 @@
   "env": {
     "DJANGO_SETTINGS_MODULE": "config.settings.production",
     "DJANGO_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "DJANGO_SETTINGS_MODULE": "config.settings.production",
+      "DJANGO_ENV": "production"
+    }
   }
 }

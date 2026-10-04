@@ -14,10 +14,14 @@
 - Vercel will automatically detect it as a Python project
 
 ### 3. Configure Build
-- **Framework Preset**: Other
-- **Build Command**: `cd system && pip install -r requirements.txt && python manage.py collectstatic --noinput`
-- **Output Directory**: `system/staticfiles`
-- **Install Command**: `pip install -r system/requirements.txt`
+- **Framework Preset**: Django (auto-detected from the root `manage.py`)
+- **Build Command**: leave empty (Vercel's Django builder runs static collection during the build)
+- **Output Directory**: leave empty
+- **Install Command**: leave empty (Vercel installs the root `requirements.txt`)
+
+Do not run `collectstatic` from `system/vercel_wsgi.py` or any request-time code.
+The deployed function filesystem (`/var/task`) is read-only; static assets and
+`staticfiles.json` must be generated and packaged during the Vercel build.
 
 ### 4. Add Environment Variables
 Copy ALL of these to **Settings → Environment Variables**:

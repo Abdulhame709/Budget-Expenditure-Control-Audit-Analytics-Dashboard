@@ -1,25 +1,8 @@
 {
-  "version": 2,
-  "name": "budget-audit-analytics",
-  "builds": [
-    {
-      "src": "system/vercel_wsgi.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    { "src": "/static/(.*)", "dest": "/static/$1" },
-    { "src": "/media/(.*)", "dest": "/media/$1" },
-    { "src": "/(.*)", "dest": "system/vercel_wsgi.py" }
-  ],
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "django",
   "env": {
     "DJANGO_SETTINGS_MODULE": "config.settings.production",
     "DJANGO_ENV": "production"
-  },
-  "build": {
-    "env": {
-      "DJANGO_SETTINGS_MODULE": "config.settings.production",
-      "DJANGO_ENV": "production"
-    }
   }
 }

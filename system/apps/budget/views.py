@@ -14,17 +14,28 @@ from __future__ import annotations
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db.models import Q
+from django.db import transaction
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from apps.accounts.permissions import has_perm, require_permission
 from apps.governance.models import AuditLog
 from apps.reference.services import changes_between, log_action, snapshot
 
 from . import forms, services
-from .models import Budget, BudgetLine, BudgetVersion, MONTH_FIELDS
+from .models import (
+    MONTH_FIELDS,
+    Budget,
+    BudgetLine,
+    BudgetTemplate,
+    BudgetTemplateRow,
+    BudgetTemplateSheet,
+    BudgetVersion,
+)
+from .template_import import import_budget_workbook
 
 
 # ---------------------------------------------------------------- list
@@ -175,16 +186,27 @@ def budget_delete(request, pk):
 
 
 # ---------------------------------------------------------------- versions
-def version_detail(request, pk):
-    version = get_object_or_404(
-        BudgetVersion.objects.select_related("budget__fiscal_year"), pk=pk)
-    lines = version.lines.select_related(
-        "department", "account", "expense_category")
+def _version_detail_context(request, version, *, grid_forms=None):
+    lines = list(version.lines.select_related(
+        "department", "account", "expense_category"))
     totals = services.version_totals(version)
     can_edit = has_perm(request.user, "budget.edit")
     locked = version.is_approved  # approved ⇒ lines locked
-    return render(request, "budget/version_detail.html", {
+    if grid_forms is None and can_edit and not locked:
+        grid_forms = [
+            forms.BudgetLineGridForm(instance=line, prefix=f"line-{line.pk}")
+            for line in lines
+        ]
+    form_by_line_id = {
+        form.instance.pk: form for form in (grid_forms or [])
+    }
+    grid_rows = [
+        {"line": line, "form": form_by_line_id.get(line.pk)}
+        for line in lines
+    ]
+    return {
         "version": version, "budget": version.budget, "lines": lines,
+        "grid_rows": grid_rows,
         "totals": totals, "can_edit": can_edit, "locked": locked,
         "is_analysis": version.is_analysis_version,
         "summary_url": reverse("budget:version_summary", args=[version.pk]),
@@ -192,9 +214,85 @@ def version_detail(request, pk):
         "unapprove_url": reverse("budget:version_unapprove", args=[version.pk]),
         "edit_notes_url": reverse("budget:version_edit", args=[version.pk]),
         "line_create_url": reverse("budget:line_create", args=[version.pk]),
+        "grid_update_url": reverse(
+            "budget:version_grid_update", args=[version.pk]),
         "new_revision_url": reverse(
             "budget:version_new_revision", args=[version.budget_id]),
-    })
+    }
+
+
+def version_detail(request, pk):
+    version = get_object_or_404(
+        BudgetVersion.objects.select_related("budget__fiscal_year"), pk=pk)
+    return render(
+        request,
+        "budget/version_detail.html",
+        _version_detail_context(request, version),
+    )
+
+
+@require_permission("budget.edit")
+@require_POST
+def version_grid_update(request, pk):
+    version = get_object_or_404(
+        BudgetVersion.objects.select_related("budget__fiscal_year"), pk=pk)
+    _require_draft(version, "التعديل الشبكي")
+    lines = list(version.lines.select_related(
+        "department", "account", "expense_category"))
+    if not lines:
+        messages.info(request, "لا توجد سطور موازنة لتعديلها.")
+        return redirect("budget:version_detail", pk=version.pk)
+
+    before_by_line_id = {
+        line.pk: snapshot(line, [*MONTH_FIELDS, "annual_amount"])
+        for line in lines
+    }
+    grid_forms = [
+        forms.BudgetLineGridForm(
+            request.POST, instance=line, prefix=f"line-{line.pk}"
+        )
+        for line in lines
+    ]
+    validation_results = [form.is_valid() for form in grid_forms]
+    if not all(validation_results):
+        messages.error(
+            request,
+            "لم تُحفظ التغييرات: صحّح القيم المعلّمة داخل جدول الموازنة.",
+        )
+        return render(
+            request,
+            "budget/version_detail.html",
+            _version_detail_context(request, version, grid_forms=grid_forms),
+            status=400,
+        )
+
+    changed_count = 0
+    with transaction.atomic():
+        for form in grid_forms:
+            line = form.instance
+            before = before_by_line_id[line.pk]
+            line = form.save(commit=False)
+            line.updated_by = request.user
+            line.save()
+            diff = changes_between(line, before)
+            if diff:
+                changed_count += 1
+                log_action(
+                    action="entity_updated",
+                    entity_type="budgetline",
+                    entity_id=line.pk,
+                    diff=diff,
+                    request=request,
+                )
+
+    if changed_count:
+        messages.success(
+            request,
+            f"تم حفظ {changed_count} من سطور الموازنة وتسجيل الفروق.",
+        )
+    else:
+        messages.info(request, "لم توجد تغييرات جديدة للحفظ.")
+    return redirect("budget:version_detail", pk=version.pk)
 
 
 @require_permission("budget.edit")
@@ -420,3 +518,193 @@ def version_summary(request, pk):
         "back_url": reverse("budget:version_detail", args=[version.pk]),
     }
     return render(request, "budget/summary.html", context)
+
+
+# ---------------------------------------------------------------- configurable budget templates
+def template_list(request):
+    q = (request.GET.get("q") or "").strip()
+    queryset = BudgetTemplate.objects.select_related("currency").annotate(
+        sheet_count=Count("sheets", distinct=True),
+        mapped_rows=Count("sheets__rows", filter=Q(sheets__rows__account__isnull=False)),
+    )
+    if q:
+        queryset = queryset.filter(
+            Q(name__icontains=q) | Q(source_filename__icontains=q)
+        )
+    return render(request, "budget/template_list.html", {
+        "templates": queryset,
+        "q": q,
+        "can_edit": has_perm(request.user, "budget.edit"),
+    })
+
+
+@require_permission("budget.edit")
+def template_import(request):
+    if request.method == "POST":
+        form = forms.BudgetTemplateImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                template = import_budget_workbook(
+                    form.cleaned_data["workbook"],
+                    name=form.cleaned_data["name"],
+                    description=form.cleaned_data["description"],
+                    user=request.user,
+                )
+            except Exception as exc:
+                form.add_error(
+                    "workbook",
+                    f"تعذر قراءة المصنف. تأكد من سلامة ملف Excel: {exc}",
+                )
+            else:
+                log_action(
+                    action="budget_template_imported",
+                    entity_type="budgettemplate",
+                    entity_id=template.pk,
+                    diff={
+                        "name": template.name,
+                        "source_filename": template.source_filename,
+                        "sheet_count": template.sheets.count(),
+                    },
+                    request=request,
+                )
+                messages.success(
+                    request,
+                    f"تم استيراد النموذج «{template.name}» مع {template.sheets.count()} ورقة.",
+                )
+                return redirect("budget:template_detail", pk=template.pk)
+    else:
+        form = forms.BudgetTemplateImportForm()
+    return render(request, "budget/template_import.html", {"form": form})
+
+
+def template_detail(request, pk):
+    template = get_object_or_404(
+        BudgetTemplate.objects.select_related("currency"), pk=pk,
+    )
+    sheets = template.sheets.annotate(
+        populated_rows=Count("rows", distinct=True),
+        mapped_rows=Count("rows", filter=Q(rows__account__isnull=False)),
+    )
+    return render(request, "budget/template_detail.html", {
+        "template": template,
+        "sheets": sheets,
+        "can_edit": has_perm(request.user, "budget.edit"),
+    })
+
+
+@require_permission("budget.edit")
+def template_edit(request, pk):
+    template = get_object_or_404(BudgetTemplate, pk=pk)
+    before = snapshot(template, ["name", "description", "currency", "is_active"])
+    if request.method == "POST":
+        form = forms.BudgetTemplateForm(request.POST, instance=template)
+        if form.is_valid():
+            template = form.save(commit=False)
+            template.updated_by = request.user
+            template.save()
+            diff = changes_between(template, before)
+            if diff:
+                log_action(
+                    action="entity_updated", entity_type="budgettemplate",
+                    entity_id=template.pk, diff=diff, request=request,
+                )
+            messages.success(request, "تم تحديث إعدادات نموذج الموازنة.")
+            return redirect("budget:template_detail", pk=template.pk)
+    else:
+        form = forms.BudgetTemplateForm(instance=template)
+    return render(request, "budget/template_edit.html", {
+        "form": form,
+        "template": template,
+    })
+
+
+@require_permission("budget.edit")
+@require_POST
+def template_delete(request, pk):
+    template = get_object_or_404(BudgetTemplate, pk=pk)
+    source_filename = template.source_filename
+    label = template.name
+    template.delete()
+    log_action(
+        action="entity_deleted", entity_type="budgettemplate", entity_id=pk,
+        diff={"name": label, "source_filename": source_filename}, request=request,
+    )
+    messages.success(request, f"تم حذف نموذج الموازنة «{label}».")
+    return redirect("budget:template_list")
+
+
+def template_sheet(request, pk):
+    sheet = get_object_or_404(
+        BudgetTemplateSheet.objects.select_related("template"), pk=pk,
+    )
+    columns = list(sheet.columns.all())
+    row_queryset = sheet.rows.select_related("account").prefetch_related(
+        "cells__column"
+    )
+    paginator = Paginator(row_queryset, 100)
+    page = paginator.get_page(request.GET.get("page"))
+    can_edit = has_perm(request.user, "budget.edit")
+
+    if request.method == "POST":
+        if not can_edit:
+            raise PermissionDenied("لا تملك صلاحية تعديل نماذج الموازنة.")
+        sheet_form = forms.BudgetTemplateSheetForm(
+            request.POST, instance=sheet, prefix="sheet",
+        )
+        row_forms = [
+            forms.BudgetTemplateRowMappingForm(
+                request.POST, instance=row, prefix=f"row-{row.pk}"
+            )
+            for row in page.object_list
+        ]
+        if sheet_form.is_valid() and all(form.is_valid() for form in row_forms):
+            with transaction.atomic():
+                changed_rows = 0
+                old_purpose = sheet.purpose
+                updated_sheet = sheet_form.save(commit=False)
+                updated_sheet.updated_by = request.user
+                updated_sheet.save()
+                for row_form in row_forms:
+                    if row_form.has_changed():
+                        row_form.save()
+                        changed_rows += 1
+            log_action(
+                action="budget_template_mapping_updated",
+                entity_type="budgettemplatesheet",
+                entity_id=sheet.pk,
+                diff={
+                    "purpose": {"before": old_purpose, "after": sheet.purpose},
+                    "changed_rows": changed_rows,
+                    "page": page.number,
+                },
+                request=request,
+            )
+            messages.success(
+                request,
+                f"تم حفظ تصنيف الورقة وربط {changed_rows} صفًا.",
+            )
+            return redirect(f"{reverse('budget:template_sheet', args=[sheet.pk])}?page={page.number}")
+    else:
+        sheet_form = forms.BudgetTemplateSheetForm(instance=sheet, prefix="sheet")
+        row_forms = [
+            forms.BudgetTemplateRowMappingForm(instance=row, prefix=f"row-{row.pk}")
+            for row in page.object_list
+        ]
+
+    rows = []
+    for row, row_form in zip(page.object_list, row_forms):
+        cells_by_column = {cell.column_id: cell for cell in row.cells.all()}
+        rows.append({
+            "row": row,
+            "form": row_form,
+            "cells": [cells_by_column.get(column.pk) for column in columns],
+        })
+    return render(request, "budget/template_sheet.html", {
+        "sheet": sheet,
+        "template": sheet.template,
+        "columns": columns,
+        "rows": rows,
+        "page_obj": page,
+        "sheet_form": sheet_form,
+        "can_edit": can_edit,
+    })

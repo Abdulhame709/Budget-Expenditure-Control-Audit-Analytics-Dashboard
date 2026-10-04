@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}نماذج الموازنة التقديرية{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">نماذج الموازنة التقديرية</h1>
+    <p class="text-muted mb-0">مصنفات مرنة قابلة للتكييف والربط بدليل الحسابات.</p>
+  </div>
+  {% if can_edit %}<a class="btn btn-primary" href="{% url 'budget:template_import' %}">استيراد نموذج Excel</a>{% endif %}
+</div>
+
+<form method="get" class="card card-body mb-3">
+  <div class="input-group">
+    <input class="form-control" name="q" value="{{ q }}" placeholder="بحث باسم النموذج أو الملف المصدر">
+    <button class="btn btn-outline-primary">بحث</button>
+  </div>
+</form>
+
+<div class="row g-3">
+  {% for item in templates %}
+  <div class="col-12 col-lg-6">
+    <a class="card h-100 text-decoration-none text-reset" href="{% url 'budget:template_detail' item.pk %}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between gap-3">
+          <h2 class="h5 mb-1">{{ item.name }}</h2>
+          {% if item.is_active %}<span class="badge text-bg-success">نشط</span>{% else %}<span class="badge text-bg-secondary">متوقف</span>{% endif %}
+        </div>
+        <div class="small text-muted mb-3">{{ item.source_filename|default:"مصنف مُنشأ داخل النظام" }}</div>
+        <div class="d-flex flex-wrap gap-2">
+          <span class="badge text-bg-light border text-dark">{{ item.sheet_count }} ورقة</span>
+          <span class="badge text-bg-light border text-dark">{{ item.mapped_rows }} صف مربوط</span>
+          <span class="badge text-bg-light border text-dark">{{ item.currency|default:"العملة غير محددة" }}</span>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% empty %}
+  <div class="col-12"><div class="alert alert-info">لا توجد نماذج بعد. ابدأ باستيراد ملف Excel.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

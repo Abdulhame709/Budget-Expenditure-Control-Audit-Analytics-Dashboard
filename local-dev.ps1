@@ -1,7 +1,9 @@
 param(
     [ValidateSet("setup", "start", "stop", "status")]
     [string]$Action = "status",
-    [string]$PackageIndexUrl = ""
+    [string]$PackageIndexUrl = "",
+    [ValidateSet("127.0.0.1", "0.0.0.0")]
+    [string]$BindAddress = "127.0.0.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +18,7 @@ $DjangoErr = Join-Path $RuntimeDir "django.stderr.log"
 $DjangoPid = Join-Path $RuntimeDir "django.pid"
 $DbPort = 55432
 $AppPort = 8000
-$DatabaseUrl = "postgresql://audit_user:audit_pass@localhost:$DbPort/audit_budget_system"
+$DatabaseUrl = "postgresql://audit_user:audit_pass@127.0.0.1:$DbPort/audit_budget_system"
 
 function Get-PostgresBin {
     $base = "C:\Program Files\PostgreSQL"
@@ -49,8 +51,14 @@ function Get-BootstrapPython {
 
 function Test-LocalDatabaseConnection {
     param([string]$PgBin)
-    & (Join-Path $PgBin "psql.exe") -w -h localhost -p $DbPort -U postgres -d postgres -tAc "SELECT 1" *> $null
-    return $LASTEXITCODE -eq 0
+    $previousPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & (Join-Path $PgBin "psql.exe") -w -h 127.0.0.1 -p $DbPort -U postgres -d postgres -tAc "SELECT 1" 2>$null | Out-Null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
 }
 
 function Start-LocalDatabase {
@@ -60,9 +68,9 @@ function Start-LocalDatabase {
         & (Join-Path $pgBin "initdb.exe") -D $DataDir -U postgres -A trust --encoding=UTF8 --no-locale
     }
     if (-not (Test-LocalDatabaseConnection -PgBin $pgBin)) {
-        & (Join-Path $pgBin "pg_ctl.exe") start -D $DataDir -l $DbLog -o "-p $DbPort -h localhost" -w
+        & (Join-Path $pgBin "pg_ctl.exe") start -D $DataDir -l $DbLog -o "-p $DbPort -h 127.0.0.1" -w
     }
-    $env:PGHOST = "localhost"
+    $env:PGHOST = "127.0.0.1"
     $env:PGPORT = "$DbPort"
     $env:PGUSER = "postgres"
     $role = (& (Join-Path $pgBin "psql.exe") -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='audit_user'") -join ""
@@ -95,7 +103,8 @@ function Start-Django {
         }
     } catch {}
     Set-DjangoEnvironment
-    $process = Start-Process -FilePath $VenvPython -ArgumentList @("manage.py", "runserver", "127.0.0.1:$AppPort", "--noreload") -WorkingDirectory $SystemDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $DjangoOut -RedirectStandardError $DjangoErr
+    $listenAddress = "${BindAddress}:$AppPort"
+    $process = Start-Process -FilePath $VenvPython -ArgumentList @("manage.py", "runserver", $listenAddress, "--noreload") -WorkingDirectory $SystemDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $DjangoOut -RedirectStandardError $DjangoErr
     Set-Content -LiteralPath $DjangoPid -Value $process.Id -Encoding ascii
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
         Start-Sleep -Seconds 1

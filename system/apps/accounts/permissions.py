@@ -80,6 +80,11 @@ _MANAGEMENT_CORE = {
     "dashboard.view", "reports.view", "findings.view", "risk.view",
     "exceptions.view",
 }
+_PROJECT_VIEWER_CORE = {
+    "dashboard.view", "reference.view", "budget.view", "expenses.view",
+    "procurement.view", "imports.view", "audit.view", "exceptions.view",
+    "risk.view", "findings.view", "reports.view", "attachments.view",
+}
 
 ROLES: dict[str, dict] = {
     "admin": {
@@ -106,6 +111,12 @@ ROLES: dict[str, dict] = {
         "description": "قراءة فقط: لوحة، تقارير، نتائج، مخاطر، استثناءات — بلا أي تعديل.",
         "permissions": set(_MANAGEMENT_CORE),
     },
+    "viewer": {
+        "name_ar": "مستعرض المشروع",
+        "name_en": "Project Viewer",
+        "description": "قراءة الوحدات التشغيلية والتقارير والمرفقات دون تعديل أو إدارة.",
+        "permissions": set(_PROJECT_VIEWER_CORE),
+    },
 }
 
 # ---------------------------------------------------------------- page-level gate
@@ -120,7 +131,7 @@ URL_PERMISSIONS: dict[str, str] = {
 }
 
 # PHASE 4 — every reference module page (direct URL included)
-for _slug in ("fiscal_year", "period", "department", "account",
+for _slug in ("currency", "fiscal_year", "period", "department", "account",
               "expense_category", "supplier"):
     URL_PERMISSIONS[f"reference:{_slug}_list"] = "reference.view"
     URL_PERMISSIONS[f"reference:{_slug}_detail"] = "reference.view"
@@ -128,6 +139,7 @@ for _slug in ("fiscal_year", "period", "department", "account",
     URL_PERMISSIONS[f"reference:{_slug}_edit"] = "reference.edit"
     URL_PERMISSIONS[f"reference:{_slug}_delete"] = "reference.edit"
 URL_PERMISSIONS["reference:period_set_status"] = "reference.edit"
+URL_PERMISSIONS["reference:organization_settings"] = "settings.manage"
 del _slug
 
 # PHASE 5 — budget pages
@@ -136,6 +148,7 @@ URL_PERMISSIONS.update({
     "budget:budget_detail": "budget.view",
     "budget:version_detail": "budget.view",
     "budget:version_summary": "budget.view",
+    "budget:version_grid_update": "budget.edit",
     "budget:budget_create": "budget.edit",
     "budget:budget_edit": "budget.edit",
     "budget:budget_delete": "budget.edit",
@@ -146,6 +159,12 @@ URL_PERMISSIONS.update({
     "budget:line_create": "budget.edit",
     "budget:line_edit": "budget.edit",
     "budget:line_delete": "budget.edit",
+    "budget:template_list": "budget.view",
+    "budget:template_detail": "budget.view",
+    "budget:template_sheet": "budget.view",
+    "budget:template_import": "budget.edit",
+    "budget:template_edit": "budget.edit",
+    "budget:template_delete": "budget.edit",
 })
 
 # PHASE 6 — actual expenses

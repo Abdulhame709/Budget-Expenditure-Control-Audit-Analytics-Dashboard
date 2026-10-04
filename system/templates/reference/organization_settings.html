@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}إعدادات المنشأة{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h4 mb-1">إعدادات المنشأة والنظام</h1>
+    <p class="text-muted mb-0">الهوية، الإعدادات الإقليمية، السنة المالية والعملات.</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% url 'reference:currency_list' %}">تهيئة العملات</a>
+</div>
+
+<form method="post" class="card border-0 shadow-sm">
+  {% csrf_token %}
+  <div class="card-body">
+    {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="row g-3">
+      {% for field in form %}
+      <div class="{% if field.name == 'address' %}col-12{% elif field.name == 'allow_multi_currency' %}col-md-4 d-flex align-items-end{% else %}col-md-4{% endif %}">
+        <div class="w-100">
+          {% if field.field.widget.input_type == 'checkbox' %}
+          <div class="form-check mt-4">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+          {% else %}
+          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% endif %}
+          {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+          {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card-footer bg-white text-end">
+    <button class="btn btn-primary" type="submit">حفظ الإعدادات</button>
+  </div>
+</form>
+{% endblock %}

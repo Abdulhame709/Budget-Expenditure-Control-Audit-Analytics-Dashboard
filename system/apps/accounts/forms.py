@@ -25,7 +25,7 @@ class LoginForm(forms.Form):
 
 class RegisterForm(forms.Form):
     """Self-service signup: email becomes the username; the default role
-    (management / view-only) is assigned by the service, never the form."""
+    (viewer / project-wide read-only) is assigned by the service, never the form."""
 
     full_name = forms.CharField(
         label="الاسم الكامل", max_length=150,

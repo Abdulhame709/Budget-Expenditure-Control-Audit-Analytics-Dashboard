@@ -6,6 +6,12 @@ from . import views
 app_name = "budget"
 
 urlpatterns = [
+    path("templates/", views.template_list, name="template_list"),
+    path("templates/import/", views.template_import, name="template_import"),
+    path("templates/<int:pk>/", views.template_detail, name="template_detail"),
+    path("templates/<int:pk>/edit/", views.template_edit, name="template_edit"),
+    path("templates/<int:pk>/delete/", views.template_delete, name="template_delete"),
+    path("template-sheets/<int:pk>/", views.template_sheet, name="template_sheet"),
     path("", views.budget_list, name="budget_list"),
     path("new/", views.budget_create, name="budget_create"),
     path("<int:pk>/", views.budget_detail, name="budget_detail"),
@@ -20,6 +26,8 @@ urlpatterns = [
          name="version_unapprove"),
     path("versions/<int:pk>/summary/", views.version_summary,
          name="version_summary"),
+    path("versions/<int:pk>/grid-update/", views.version_grid_update,
+         name="version_grid_update"),
     path("budgets/<int:budget_pk>/new-revision/", views.version_new_revision,
          name="version_new_revision"),
     # lines

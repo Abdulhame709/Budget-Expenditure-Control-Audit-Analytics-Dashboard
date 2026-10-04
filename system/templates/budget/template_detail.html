@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ template.name }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+  <li class="breadcrumb-item"><a href="{% url 'budget:template_list' %}">نماذج الموازنة</a></li>
+  <li class="breadcrumb-item active">{{ template.name }}</li>
+</ol></nav>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">{{ template.name }}</h1>
+    <div class="text-muted">{{ template.source_filename }} · {{ template.currency|default:"بدون عملة" }}</div>
+    {% if template.description %}<p class="mt-2 mb-0">{{ template.description }}</p>{% endif %}
+  </div>
+  {% if can_edit %}
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'budget:template_edit' template.pk %}">إعدادات النموذج</a>
+    <form method="post" action="{% url 'budget:template_delete' template.pk %}" onsubmit="return confirm('هل تريد حذف النموذج وجميع أوراقه؟')">
+      {% csrf_token %}<button class="btn btn-outline-danger">حذف</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  {% for sheet in sheets %}
+  <div class="col-12 col-lg-6 col-xl-4">
+    <a class="card h-100 text-decoration-none text-reset" href="{% url 'budget:template_sheet' sheet.pk %}">
+      <div class="card-body">
+        <div class="d-flex justify-content-between gap-2">
+          <h2 class="h6 mb-2">{{ sheet.position }}. {{ sheet.name }}</h2>
+          {% if sheet.state != 'visible' %}<span class="badge text-bg-secondary">مخفية</span>{% endif %}
+        </div>
+        <div class="mb-3"><span class="badge text-bg-primary">{{ sheet.get_purpose_display }}</span></div>
+        <div class="small text-muted">{{ sheet.max_row }} صف × {{ sheet.max_column }} عمود</div>
+        <div class="small text-muted">{{ sheet.mapped_rows }} من {{ sheet.populated_rows }} صف مربوط بحساب</div>
+      </div>
+    </a>
+  </div>
+  {% empty %}<div class="col-12"><div class="alert alert-warning">لا يحتوي النموذج على أوراق.</div></div>{% endfor %}
+</div>
+{% endblock %}

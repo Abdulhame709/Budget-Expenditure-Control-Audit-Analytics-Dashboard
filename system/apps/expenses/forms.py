@@ -4,7 +4,7 @@ from __future__ import annotations
 from django import forms
 from django.core.validators import MinValueValidator
 
-from apps.reference.models import Department, ExpenseCategory, Account, Supplier
+from apps.reference.models import Account, Currency, Department, ExpenseCategory, Supplier
 from apps.reference.models import MonthlyPeriod
 
 from .models import Expense
@@ -79,6 +79,24 @@ class ExpenseForm(forms.ModelForm):
             MinValueValidator(
                 0.01, message="المبلغ يجب أن يكون موجبًا وأكبر من صفر.")
         ]
+        currencies = list(Currency.objects.filter(is_active=True).order_by(
+            "-is_base", "code"
+        ))
+        if currencies:
+            configured_choices = [
+                (currency.code, f"{currency.name_ar} ({currency.code})")
+                for currency in currencies
+            ]
+            configured_codes = {code for code, _label in configured_choices}
+            legacy_choices = [
+                choice for choice in Expense.CURRENCY_CHOICES
+                if choice[0] not in configured_codes
+            ]
+            self.fields["currency"].choices = configured_choices + legacy_choices
+            if not self.instance.pk:
+                base = next((currency for currency in currencies if currency.is_base), None)
+                if base:
+                    self.fields["currency"].initial = base.code
         for name in ("amount", "expense_number", "description", "expense_date",
                      "period", "department", "account", "currency"):
             self.fields[name].error_messages["required"] = "هذا الحقل مطلوب."

@@ -26,16 +26,40 @@ from apps.governance.models import AuditLog
 from . import forms
 from .models import (
     Account,
+    Currency,
     Department,
     ExpenseCategory,
     FiscalYear,
     MonthlyPeriod,
+    OrganizationSettings,
     Supplier,
 )
 from .services import changes_between, log_reference_action, snapshot
 
 # ---------------------------------------------------------------- registry
 REFERENCE_MODULES: dict[str, dict] = {
+    "currency": {
+        "model": Currency,
+        "form": forms.CurrencyForm,
+        "path": "currencies",
+        "title": "العملات",
+        "title_one": "عملة",
+        "columns": [
+            ("code", "الرمز"), ("name_ar", "الاسم"), ("symbol", "الشعار"),
+            ("exchange_rate_to_base", "سعر التحويل"),
+            ("is_base", "أساسية"), ("is_active", "الحالة"),
+        ],
+        "detail_fields": [
+            "code", "name_ar", "name_en", "symbol", "decimal_places",
+            "exchange_rate_to_base", "is_base", "is_active",
+        ],
+        "search": ["code", "name_ar", "name_en"],
+        "filters": {"status": "is_active"},
+        "filter_specs": [
+            ("status", "الحالة", [("", "الكل"), ("active", "نشط"), ("inactive", "معطّل")]),
+        ],
+        "paginate_by": 15,
+    },
     "fiscal_year": {
         "model": FiscalYear,
         "form": forms.FiscalYearForm,
@@ -171,6 +195,41 @@ def _cfg(slug: str) -> dict:
         return REFERENCE_MODULES[slug]
     except KeyError:
         raise PermissionDenied("وحدة غير معروفة.")
+
+
+@require_permission("settings.manage")
+def organization_settings(request):
+    instance = OrganizationSettings.load()
+    if instance is None and not Currency.objects.filter(is_base=True).exists():
+        messages.error(
+            request,
+            "يجب تهيئة العملة الأساسية أولًا قبل إعداد بيانات المنشأة.",
+        )
+        return redirect("reference:currency_list")
+
+    before = snapshot(instance) if instance else {}
+    if request.method == "POST":
+        form = forms.OrganizationSettingsForm(request.POST, instance=instance)
+        if form.is_valid():
+            settings_obj = form.save(commit=False)
+            if not settings_obj.pk:
+                settings_obj.created_by = request.user
+            settings_obj.updated_by = request.user
+            settings_obj.save()
+            action = "entity_updated" if instance else "entity_created"
+            diff = changes_between(settings_obj, before) if instance else snapshot(settings_obj)
+            log_reference_action(action, settings_obj, diff, request)
+            messages.success(request, "تم حفظ إعدادات المنشأة والنظام.")
+            return redirect("reference:organization_settings")
+    else:
+        initial = {}
+        if instance is None:
+            initial["base_currency"] = Currency.objects.filter(is_base=True).first()
+        form = forms.OrganizationSettingsForm(instance=instance, initial=initial)
+    return render(request, "reference/organization_settings.html", {
+        "form": form,
+        "settings_obj": instance,
+    })
 
 
 # ---------------------------------------------------------------- helpers

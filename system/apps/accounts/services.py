@@ -75,14 +75,14 @@ def create_user(
 
 
 # Default role for self-service signups — read-only project access.
-SELF_REGISTER_ROLE = "management"
+SELF_REGISTER_ROLE = "viewer"
 
 
 @transaction.atomic
 def register_user(*, email: str, password: str, full_name: str = "", request=None):
     """Self-service signup. No permission gate (the user does not exist yet).
 
-    The new account always joins the read-only «management» role; an admin can
+    The new account always joins the read-only «viewer» role; an admin can
     later elevate the account from the users screen. Username == email (login form
     accepts either).
     """

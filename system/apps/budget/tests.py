@@ -11,18 +11,34 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.test import Client, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
+from openpyxl import Workbook
 
 from apps.accounts.models import Role, UserRole
 from apps.governance.models import AuditLog
 from apps.budget import services
-from apps.budget.models import Budget, BudgetLine, BudgetVersion, MONTH_FIELDS
-from apps.reference.models import Account, Department, ExpenseCategory, FiscalYear
+from apps.budget.models import (
+    MONTH_FIELDS,
+    Budget,
+    BudgetLine,
+    BudgetTemplate,
+    BudgetVersion,
+)
+from apps.budget.template_import import import_budget_workbook
+from apps.reference.models import (
+    Account,
+    Currency,
+    Department,
+    ExpenseCategory,
+    FiscalYear,
+)
 
 User = get_user_model()
 PW = "S3cure-Demo-Pass!"
@@ -69,6 +85,90 @@ def make_line(version, dept, acc, months=None, **extra):
     line.full_clean()   # derives annual_amount (as the views do) before save
     line.save()
     return line
+
+
+def sample_workbook_bytes():
+    workbook = Workbook()
+    detail = workbook.active
+    detail.title = "تفصيلي"
+    detail.merge_cells("A1:D1")
+    detail["A1"] = "نموذج الموازنة التفصيلي"
+    detail["A2"] = "رقم الحساب"
+    detail["B2"] = "اسم الحساب"
+    detail["C2"] = "يناير"
+    detail["D2"] = "الإجمالي السنوي"
+    detail["A3"] = "5101"
+    detail["B3"] = "مصروفات تنقّل"
+    detail["C3"] = 100
+    detail["D3"] = "=SUM(C3:C3)"
+    summary = workbook.create_sheet("الإجماليات")
+    summary["A1"] = "إجمالي الحسابات الرئيسية"
+    content = BytesIO()
+    workbook.save(content)
+    workbook.close()
+    content.seek(0)
+    return content.getvalue()
+
+
+class BudgetTemplateImportTests(TestCase):
+    def setUp(self):
+        Currency.objects.update_or_create(
+            code="YER",
+            defaults={
+                "name_ar": "ريال يمني", "name_en": "Yemeni Rial",
+                "exchange_rate_to_base": 1, "is_base": True, "is_active": True,
+            },
+        )
+        self.account = Account.objects.create(
+            code="5101", name="مصروفات تنقّل", account_type="expense",
+        )
+        self.user = User.objects.create_superuser(
+            username="template-admin", email="template@example.com", password=PW,
+        )
+
+    def test_import_preserves_sheets_formula_and_account_mapping(self):
+        upload = SimpleUploadedFile(
+            "budget.xlsx", sample_workbook_bytes(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        template = import_budget_workbook(upload, name="نموذج اختباري", user=self.user)
+        self.assertEqual(template.currency.code, "YER")
+        self.assertEqual(template.sheets.count(), 2)
+        detail = template.sheets.get(name="تفصيلي")
+        self.assertEqual(detail.merged_ranges, ["A1:D1"])
+        self.assertEqual(detail.rows.get(row_number=3).account, self.account)
+        self.assertEqual(
+            detail.rows.get(row_number=3).cells.get(coordinate="D3").formula,
+            "=SUM(C3:C3)",
+        )
+        self.assertEqual(
+            template.sheets.get(name="الإجماليات").purpose,
+            "summary",
+        )
+
+    def test_template_pages_and_upload_require_expected_permissions(self):
+        client = Client()
+        client.force_login(self.user)
+        response = client.post(
+            reverse("budget:template_import"),
+            {
+                "name": "مرفوع من الواجهة",
+                "description": "اختبار",
+                "workbook": SimpleUploadedFile(
+                    "ui-budget.xlsx", sample_workbook_bytes(),
+                    content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ),
+            },
+        )
+        template = BudgetTemplate.objects.get(name="مرفوع من الواجهة")
+        self.assertRedirects(
+            response, reverse("budget:template_detail", args=[template.pk])
+        )
+        self.assertEqual(client.get(reverse("budget:template_list")).status_code, 200)
+        self.assertEqual(
+            client.get(reverse("budget:template_sheet", args=[template.sheets.first().pk])).status_code,
+            200,
+        )
 
 
 # ================================================================ calculations
@@ -290,6 +390,72 @@ class BudgetHttpTests(TestCase):
         self.assertTrue(AuditLog.objects.filter(
             action="entity_created", entity_type="budgetline",
             entity_id=str(line.pk)).exists())
+
+    def test_finance_grid_update_saves_months_and_audits(self):
+        line = self.version.lines.get()
+        data = {
+            f"line-{line.pk}-{field}": "0"
+            for field in MONTH_FIELDS
+        }
+        data[f"line-{line.pk}-m01"] = "1500.25"
+        data[f"line-{line.pk}-m02"] = "249.75"
+        response = self._client(self.finance).post(
+            reverse("budget:version_grid_update", args=[self.version.pk]),
+            data,
+        )
+        self.assertEqual(response.status_code, 302)
+        line.refresh_from_db()
+        self.assertEqual(line.m01, D("1500.25"))
+        self.assertEqual(line.m02, D("249.75"))
+        self.assertEqual(line.annual_amount, D("1750.00"))
+        self.assertTrue(AuditLog.objects.filter(
+            action="entity_updated", entity_type="budgetline",
+            entity_id=str(line.pk),
+        ).exists())
+
+    def test_grid_update_is_atomic_when_a_value_is_invalid(self):
+        line = self.version.lines.get()
+        data = {
+            f"line-{line.pk}-{field}": "0"
+            for field in MONTH_FIELDS
+        }
+        data[f"line-{line.pk}-m01"] = "-1"
+        response = self._client(self.finance).post(
+            reverse("budget:version_grid_update", args=[self.version.pk]),
+            data,
+        )
+        self.assertEqual(response.status_code, 400)
+        line.refresh_from_db()
+        self.assertEqual(line.m01, D("1000"))
+        self.assertEqual(line.annual_amount, D("1000"))
+
+    def test_auditor_cannot_use_grid_update(self):
+        line = self.version.lines.get()
+        data = {
+            f"line-{line.pk}-{field}": "0"
+            for field in MONTH_FIELDS
+        }
+        response = self._client(self.auditor).post(
+            reverse("budget:version_grid_update", args=[self.version.pk]),
+            data,
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_approved_version_rejects_grid_update(self):
+        self.version.status = "approved"
+        self.version.save()
+        line = self.version.lines.get()
+        data = {
+            f"line-{line.pk}-{field}": "0"
+            for field in MONTH_FIELDS
+        }
+        response = self._client(self.admin).post(
+            reverse("budget:version_grid_update", args=[self.version.pk]),
+            data,
+        )
+        self.assertEqual(response.status_code, 403)
+        line.refresh_from_db()
+        self.assertEqual(line.annual_amount, D("1000"))
 
     def test_admin_approves_locks_and_audits(self):
         c = self._client(self.admin)

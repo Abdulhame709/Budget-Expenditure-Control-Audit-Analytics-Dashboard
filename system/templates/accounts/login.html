@@ -31,7 +31,9 @@
         <button class="btn btn-primary w-100 py-2" type="submit">دخول آمن إلى النظام</button>
       </form>
       <p class="text-center small mt-3 mb-0">
+        {% if allow_self_registration %}
         ليس لديك حساب؟ <a href="{% url 'accounts:register' %}">إنشاء حساب بالبريد الإلكتروني</a>
+        {% endif %}
       </p>
       <p class="login-security">جلسة مشفّرة · كلمات المرور لا تُخزَّن نصًا صريحًا</p>
     </div>

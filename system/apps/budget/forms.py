@@ -5,7 +5,15 @@ from django import forms
 
 from apps.reference.models import Department, ExpenseCategory, Account, FiscalYear
 
-from .models import MONTH_FIELDS, Budget, BudgetLine, BudgetVersion
+from .models import (
+    MONTH_FIELDS,
+    Budget,
+    BudgetLine,
+    BudgetTemplate,
+    BudgetTemplateRow,
+    BudgetTemplateSheet,
+    BudgetVersion,
+)
 
 AMOUNT_INPUT = forms.NumberInput(
     attrs={"class": "form-control form-control-sm", "step": "0.01", "min": "0",
@@ -98,3 +106,98 @@ class BudgetLineForm(forms.ModelForm):
             if not self.cleaned_data.get(fname):
                 self.cleaned_data[fname] = 0
         return self.cleaned_data
+
+
+class BudgetLineGridForm(forms.ModelForm):
+    """Restricted spreadsheet editor: monthly amounts only."""
+
+    class Meta:
+        model = BudgetLine
+        fields = MONTH_FIELDS
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for fname in MONTH_FIELDS:
+            self.fields[fname].required = False
+            self.fields[fname].widget = forms.NumberInput(attrs={
+                "class": "form-control form-control-sm budget-grid-input",
+                "step": "0.01",
+                "min": "0",
+                "dir": "ltr",
+                "form": "budget-grid-form",
+                "data-month-field": fname,
+                "aria-label": self.instance.__class__._meta.get_field(
+                    fname
+                ).verbose_name,
+            })
+
+    def clean(self):
+        super().clean()
+        for fname in MONTH_FIELDS:
+            if self.cleaned_data.get(fname) in (None, ""):
+                self.cleaned_data[fname] = 0
+        return self.cleaned_data
+
+
+class BudgetTemplateImportForm(forms.Form):
+    name = forms.CharField(
+        label="اسم النموذج", max_length=180,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    description = forms.CharField(
+        label="الوصف", required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+    )
+    workbook = forms.FileField(
+        label="ملف Excel",
+        widget=forms.ClearableFileInput(
+            attrs={"class": "form-control", "accept": ".xlsx,.xlsm"}
+        ),
+    )
+
+    def clean_workbook(self):
+        workbook = self.cleaned_data["workbook"]
+        suffix = workbook.name.lower().rsplit(".", 1)[-1]
+        if suffix not in {"xlsx", "xlsm"}:
+            raise forms.ValidationError("الملفات المدعومة هي XLSX وXLSM فقط.")
+        if workbook.size > 25 * 1024 * 1024:
+            raise forms.ValidationError("حجم الملف يتجاوز الحد المسموح (25 ميجابايت).")
+        return workbook
+
+
+class BudgetTemplateForm(forms.ModelForm):
+    class Meta:
+        model = BudgetTemplate
+        fields = ["name", "description", "currency", "is_active"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "currency": forms.Select(attrs={"class": "form-select"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class BudgetTemplateSheetForm(forms.ModelForm):
+    class Meta:
+        model = BudgetTemplateSheet
+        fields = ["purpose"]
+        widgets = {"purpose": forms.Select(attrs={"class": "form-select form-select-sm"})}
+
+
+class BudgetTemplateRowMappingForm(forms.ModelForm):
+    class Meta:
+        model = BudgetTemplateRow
+        fields = ["row_type", "account", "is_included"]
+        widgets = {
+            "row_type": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "account": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "is_included": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["account"].queryset = Account.objects.filter(
+            account_type="expense", is_active=True,
+        ).order_by("code")
+        self.fields["account"].required = False
+        self.fields["account"].empty_label = "— غير مربوط —"

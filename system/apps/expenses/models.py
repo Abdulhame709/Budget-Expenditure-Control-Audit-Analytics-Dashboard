@@ -26,9 +26,9 @@ class Expense(models.Model):
     """One actual expense transaction (Synthetic Training Data only)."""
 
     CURRENCY_CHOICES = [
+        ("YER", "ريال يمني (YER)"),
         ("USD", "دولار أمريكي (USD)"),
         ("SAR", "ريال سعودي (SAR)"),
-        ("YER", "ريال يمني (YER)"),
     ]
     PAYMENT_CHOICES = [
         ("cash", "نقدًا"),
@@ -69,7 +69,7 @@ class Expense(models.Model):
         validators=[MinValueValidator(0.01)],
     )
     currency = models.CharField(
-        "العملة", max_length=3, choices=CURRENCY_CHOICES, default="USD",
+        "العملة", max_length=3, choices=CURRENCY_CHOICES, default="YER",
     )
     # payment / reference information
     payment_method = models.CharField(

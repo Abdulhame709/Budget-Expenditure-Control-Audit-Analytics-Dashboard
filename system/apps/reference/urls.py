@@ -23,6 +23,8 @@ for _slug, _cfg in views.REFERENCE_MODULES.items():
     ]
 
 urlpatterns += [
+    path("organization-settings/", views.organization_settings,
+         name="organization_settings"),
     path("periods/<int:pk>/set-status/", views.period_set_status,
          name="period_set_status"),
 ]

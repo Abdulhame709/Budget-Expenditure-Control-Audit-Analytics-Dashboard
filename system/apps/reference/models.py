@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -33,6 +34,97 @@ class TimeStampedModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+# ---------------------------------------------------------------- currencies / organization settings
+class Currency(TimeStampedModel):
+    code = models.CharField("رمز العملة", max_length=3, unique=True)
+    name_ar = models.CharField("اسم العملة", max_length=80)
+    name_en = models.CharField("الاسم بالإنجليزية", max_length=80, blank=True)
+    symbol = models.CharField("الرمز", max_length=12, blank=True)
+    decimal_places = models.PositiveSmallIntegerField(
+        "المنازل العشرية", default=2,
+        validators=[MinValueValidator(0), MaxValueValidator(4)],
+    )
+    exchange_rate_to_base = models.DecimalField(
+        "سعر التحويل إلى العملة الأساسية",
+        max_digits=18, decimal_places=6, default=Decimal("1"),
+        validators=[MinValueValidator(Decimal("0.000001"))],
+    )
+    is_base = models.BooleanField("العملة الأساسية", default=False)
+    is_active = models.BooleanField("نشطة", default=True)
+
+    class Meta:
+        db_table = "currencies"
+        verbose_name = "عملة"
+        verbose_name_plural = "العملات"
+        ordering = ["-is_base", "code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_base"], condition=Q(is_base=True),
+                name="uq_single_base_currency",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.code} — {self.name_ar}"
+
+    def clean(self):
+        super().clean()
+        self.code = (self.code or "").strip().upper()
+        if self.is_base:
+            self.exchange_rate_to_base = Decimal("1")
+            if Currency.objects.filter(is_base=True).exclude(pk=self.pk).exists():
+                raise ValidationError({"is_base": "توجد عملة أساسية أخرى بالفعل."})
+
+
+class OrganizationSettings(TimeStampedModel):
+    organization_name_ar = models.CharField(
+        "اسم المنشأة بالعربية", max_length=180, default="المنشأة",
+    )
+    organization_name_en = models.CharField(
+        "اسم المنشأة بالإنجليزية", max_length=180, blank=True,
+    )
+    short_name = models.CharField("الاسم المختصر", max_length=80, blank=True)
+    registration_number = models.CharField(
+        "رقم السجل/الترخيص", max_length=80, blank=True,
+    )
+    tax_number = models.CharField("الرقم الضريبي", max_length=80, blank=True)
+    country = models.CharField("الدولة", max_length=80, default="اليمن")
+    city = models.CharField("المدينة", max_length=80, blank=True)
+    address = models.TextField("العنوان", blank=True)
+    phone = models.CharField("الهاتف", max_length=40, blank=True)
+    email = models.EmailField("البريد الإلكتروني", blank=True)
+    website = models.URLField("الموقع الإلكتروني", blank=True)
+    timezone = models.CharField("المنطقة الزمنية", max_length=50, default="Asia/Aden")
+    default_language = models.CharField(
+        "اللغة الأساسية", max_length=5,
+        choices=[("ar", "العربية"), ("en", "English")], default="ar",
+    )
+    fiscal_year_start_month = models.PositiveSmallIntegerField(
+        "شهر بداية السنة المالية", default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+    )
+    base_currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, related_name="organizations",
+        verbose_name="العملة الأساسية",
+    )
+    allow_multi_currency = models.BooleanField("السماح بتعدد العملات", default=True)
+    date_format = models.CharField("تنسيق التاريخ", max_length=20, default="Y-m-d")
+    thousand_separator = models.CharField("فاصل الآلاف", max_length=3, default=",")
+    decimal_separator = models.CharField("الفاصل العشري", max_length=3, default=".")
+
+    class Meta:
+        db_table = "organization_settings"
+        verbose_name = "إعدادات المنشأة"
+        verbose_name_plural = "إعدادات المنشأة"
+
+    def __str__(self):
+        return self.organization_name_ar
+
+    @classmethod
+    def load(cls):
+        return cls.objects.select_related("base_currency").first()
 
 
 # ---------------------------------------------------------------- fiscal year

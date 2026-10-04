@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ version }}{% endblock %}
 {% block content %}
+<style>
+  .budget-toolbar { position: sticky; top: .5rem; z-index: 20; }
+  .budget-grid-input { min-width: 88px; text-align: end; }
+  .budget-grid-input.is-dirty { border-color: #f0ad4e; background: #fffaf0; }
+  .budget-grid-row.is-hidden { display: none; }
+  .budget-grid-row.is-selected > td { background: #eef6ff; }
+  .budget-grid-table .errorlist {
+    list-style: none; margin: .2rem 0 0; padding: 0; color: #b02a37;
+    font-size: .72rem; white-space: normal;
+  }
+</style>
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <div>
     <nav aria-label="breadcrumb"><ol class="breadcrumb small mb-1">
@@ -76,12 +87,65 @@
   </div>
 </div>
 
+{% if can_edit and not locked and lines %}
+<form id="budget-grid-form" method="post" action="{{ grid_update_url }}">
+  {% csrf_token %}
+</form>
+{% endif %}
+
+<div class="card border-0 shadow-sm budget-toolbar mb-2">
+  <div class="card-body py-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <div class="input-group input-group-sm" style="max-width:320px">
+        <span class="input-group-text">بحث</span>
+        <input id="budget-grid-search" class="form-control" type="search"
+               placeholder="الإدارة أو الحساب أو التصنيف">
+      </div>
+      {% if can_edit and not locked and lines %}
+      <div class="vr d-none d-md-block"></div>
+      <select id="budget-batch-month" class="form-select form-select-sm" style="max-width:130px">
+        <option value="m01">شهر 1</option><option value="m02">شهر 2</option>
+        <option value="m03">شهر 3</option><option value="m04">شهر 4</option>
+        <option value="m05">شهر 5</option><option value="m06">شهر 6</option>
+        <option value="m07">شهر 7</option><option value="m08">شهر 8</option>
+        <option value="m09">شهر 9</option><option value="m10">شهر 10</option>
+        <option value="m11">شهر 11</option><option value="m12">شهر 12</option>
+      </select>
+      <input id="budget-batch-value" class="form-control form-control-sm"
+             type="number" min="0" step="0.01" value="0" dir="ltr"
+             aria-label="قيمة التعبئة الجماعية" style="max-width:130px">
+      <button id="budget-apply-batch" class="btn btn-sm btn-outline-primary" type="button">
+        تعبئة المحدد
+      </button>
+      <button id="budget-grid-reset" class="btn btn-sm btn-outline-secondary" type="button">
+        تراجع
+      </button>
+      <button class="btn btn-sm btn-success" type="submit" form="budget-grid-form">
+        حفظ الجدول
+      </button>
+      <span id="budget-grid-status" class="small text-muted">لا تغييرات غير محفوظة</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 <div class="card border-0 shadow-sm">
-  <div class="card-header bg-white fw-bold">سطور الميزانية (12 شهرًا + السنوية)</div>
+  <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2">
+    <span class="fw-bold">سطور الميزانية (12 شهرًا + السنوية)</span>
+    {% if can_edit and not locked %}
+    <span class="small text-muted">يمكن تعديل مبالغ الأشهر مباشرة ثم حفظ الجدول</span>
+    {% endif %}
+  </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0" style="min-width:1200px">
+    <table class="table table-sm table-hover align-middle mb-0 budget-grid-table" style="min-width:1500px">
       <thead class="table-light">
         <tr>
+          <th class="text-center" style="width:38px">
+            {% if can_edit and not locked and lines %}
+            <input id="budget-select-all" class="form-check-input" type="checkbox"
+                   aria-label="تحديد جميع السطور">
+            {% endif %}
+          </th>
           <th>الإدارة</th><th>الحساب</th><th>التصنيف</th>
           {% for i in "123456789"|make_list %}<th class="text-center">ش{{ i }}</th>{% endfor %}
           <th class="text-center">ش10</th><th class="text-center">ش11</th><th class="text-center">ش12</th>
@@ -89,11 +153,33 @@
         </tr>
       </thead>
       <tbody>
-        {% for line in lines %}
-        <tr>
+        {% for row in grid_rows %}
+        {% with line=row.line form=row.form %}
+        <tr class="budget-grid-row"
+            data-search="{{ line.department.code }} {{ line.department.name }} {{ line.account.code }} {{ line.account.name }} {{ line.expense_category|default:'' }}">
+          <td class="text-center">
+            {% if form %}
+            <input class="form-check-input budget-row-select" type="checkbox"
+                   aria-label="تحديد {{ line.department.code }}/{{ line.account.code }}">
+            {% endif %}
+          </td>
           <td class="text-nowrap">{{ line.department.code }}</td>
           <td class="text-nowrap"><span dir="ltr">{{ line.account.code }}</span> {{ line.account.name }}</td>
           <td class="small">{{ line.expense_category|default:"—" }}</td>
+          {% if form %}
+          <td>{{ form.m01 }}{{ form.m01.errors }}</td>
+          <td>{{ form.m02 }}{{ form.m02.errors }}</td>
+          <td>{{ form.m03 }}{{ form.m03.errors }}</td>
+          <td>{{ form.m04 }}{{ form.m04.errors }}</td>
+          <td>{{ form.m05 }}{{ form.m05.errors }}</td>
+          <td>{{ form.m06 }}{{ form.m06.errors }}</td>
+          <td>{{ form.m07 }}{{ form.m07.errors }}</td>
+          <td>{{ form.m08 }}{{ form.m08.errors }}</td>
+          <td>{{ form.m09 }}{{ form.m09.errors }}</td>
+          <td>{{ form.m10 }}{{ form.m10.errors }}</td>
+          <td>{{ form.m11 }}{{ form.m11.errors }}</td>
+          <td>{{ form.m12 }}{{ form.m12.errors }}</td>
+          {% else %}
           <td class="text-center small font-monospace">{{ line.m01 }}</td>
           <td class="text-center small font-monospace">{{ line.m02 }}</td>
           <td class="text-center small font-monospace">{{ line.m03 }}</td>
@@ -106,7 +192,8 @@
           <td class="text-center small font-monospace">{{ line.m10 }}</td>
           <td class="text-center small font-monospace">{{ line.m11 }}</td>
           <td class="text-center small font-monospace">{{ line.m12 }}</td>
-          <td class="text-end font-monospace fw-bold" dir="ltr">{{ line.annual_amount }}</td>
+          {% endif %}
+          <td class="text-end font-monospace fw-bold budget-row-annual" dir="ltr">{{ line.annual_amount }}</td>
           <td class="text-end text-nowrap">
             {% if can_edit and not locked %}
             <a class="btn btn-sm btn-outline-primary"
@@ -120,15 +207,16 @@
             {% endif %}
           </td>
         </tr>
+        {% endwith %}
         {% empty %}
-        <tr><td colspan="17" class="text-center text-muted py-4">
+        <tr><td colspan="18" class="text-center text-muted py-4">
           لا سطور بعد — أدخل سطر الميزانية يدويًا.</td></tr>
         {% endfor %}
       </tbody>
       {% if lines %}
       <tfoot class="table-light fw-bold">
         <tr>
-          <td colspan="3">الإجمالي (من DB)</td>
+          <td></td><td colspan="3">الإجمالي (من DB)</td>
           <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.0 }}</td>
           <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.1 }}</td>
           <td class="text-center font-monospace" dir="ltr">{{ totals.monthly.2 }}</td>
@@ -153,4 +241,92 @@
 {% if version.notes %}
 <div class="alert alert-light border small mt-3">{{ version.notes }}</div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const rows = [...document.querySelectorAll('.budget-grid-row')];
+  const search = document.getElementById('budget-grid-search');
+  const form = document.getElementById('budget-grid-form');
+  const status = document.getElementById('budget-grid-status');
+  const selectAll = document.getElementById('budget-select-all');
+
+  const numberValue = (input) => {
+    const value = Number.parseFloat(input.value);
+    return Number.isFinite(value) ? value : 0;
+  };
+  const recalculateRow = (row) => {
+    const total = [...row.querySelectorAll('.budget-grid-input')]
+      .reduce((sum, input) => sum + numberValue(input), 0);
+    const annual = row.querySelector('.budget-row-annual');
+    if (annual) annual.textContent = total.toFixed(2);
+  };
+  const markDirty = (input) => {
+    if (!form) return;
+    input.classList.toggle('is-dirty', input.value !== input.defaultValue);
+    const dirty = document.querySelectorAll('.budget-grid-input.is-dirty').length;
+    status.textContent = dirty ? `${dirty} خلية غير محفوظة` : 'لا تغييرات غير محفوظة';
+    status.classList.toggle('text-warning', dirty > 0);
+    status.classList.toggle('text-muted', dirty === 0);
+  };
+
+  search?.addEventListener('input', () => {
+    const query = search.value.trim().toLocaleLowerCase('ar');
+    rows.forEach((row) => {
+      const matches = !query || row.dataset.search.toLocaleLowerCase('ar').includes(query);
+      row.classList.toggle('is-hidden', !matches);
+    });
+  });
+
+  document.querySelectorAll('.budget-grid-input').forEach((input) => {
+    input.addEventListener('input', () => {
+      markDirty(input);
+      recalculateRow(input.closest('.budget-grid-row'));
+    });
+  });
+  document.querySelectorAll('.budget-row-select').forEach((checkbox) => {
+    checkbox.addEventListener('change', () => {
+      checkbox.closest('.budget-grid-row').classList.toggle('is-selected', checkbox.checked);
+    });
+  });
+  selectAll?.addEventListener('change', () => {
+    rows.filter((row) => !row.classList.contains('is-hidden')).forEach((row) => {
+      const checkbox = row.querySelector('.budget-row-select');
+      if (!checkbox) return;
+      checkbox.checked = selectAll.checked;
+      checkbox.dispatchEvent(new Event('change'));
+    });
+  });
+
+  document.getElementById('budget-apply-batch')?.addEventListener('click', () => {
+    const month = document.getElementById('budget-batch-month').value;
+    const value = document.getElementById('budget-batch-value').value;
+    const selected = rows.filter((row) => row.querySelector('.budget-row-select:checked'));
+    if (!selected.length) {
+      window.alert('حدد سطرًا واحدًا على الأقل قبل التعبئة الجماعية.');
+      return;
+    }
+    selected.forEach((row) => {
+      const input = row.querySelector(`[data-month-field="${month}"]`);
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    });
+  });
+
+  document.getElementById('budget-grid-reset')?.addEventListener('click', () => {
+    form.reset();
+    document.querySelectorAll('.budget-grid-input').forEach((input) => markDirty(input));
+    rows.forEach(recalculateRow);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (form && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  rows.forEach(recalculateRow);
+})();
+</script>
 {% endblock %}

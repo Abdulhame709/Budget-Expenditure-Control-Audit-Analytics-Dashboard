@@ -73,7 +73,11 @@ def login_view(request):
         form = LoginForm()
     return render(
         request, "accounts/login.html",
-        {"form": form, "next": next_url},
+        {
+            "form": form,
+            "next": next_url,
+            "allow_self_registration": settings.ALLOW_SELF_REGISTRATION,
+        },
     )
 
 

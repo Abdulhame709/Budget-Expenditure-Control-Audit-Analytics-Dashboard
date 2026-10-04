@@ -17,7 +17,7 @@ from apps.accounts.permissions import (
     has_perm,
     user_permission_codes,
 )
-from apps.accounts.services import create_user, update_user
+from apps.accounts.services import create_user, register_user, update_user
 from apps.governance.models import AuditLog
 
 User = get_user_model()
@@ -130,11 +130,14 @@ class AuthFlowTests(TestCase):
 class RoleCatalogTests(TestCase):
     def test_permission_catalog_integrity(self):
         self.assertEqual(len(PERMISSIONS), 30)  # 29 (PHASE 3) + periods.post_closed (PHASE 4)
-        self.assertEqual(set(ROLES), {"admin", "auditor", "finance", "management"})
+        self.assertEqual(
+            set(ROLES), {"admin", "auditor", "finance", "management", "viewer"}
+        )
         self.assertEqual(len(ROLES["admin"]["permissions"]), 30)   # everything
         self.assertEqual(len(ROLES["auditor"]["permissions"]), 18)
         self.assertEqual(len(ROLES["finance"]["permissions"]), 12)
         self.assertEqual(len(ROLES["management"]["permissions"]), 5)
+        self.assertEqual(len(ROLES["viewer"]["permissions"]), 12)
         for spec in ROLES.values():
             for code in spec["permissions"]:
                 self.assertIn(code, ALL_CODES)
@@ -154,6 +157,35 @@ class RoleCatalogTests(TestCase):
                      "exceptions.manage", "findings.manage", "audit.run",
                      "users.manage", "imports.run"):
             self.assertFalse(has_perm(mgmt, code), code)
+
+    def test_project_viewer_has_project_wide_read_only_access(self):
+        viewer = make_user("project_viewer", "viewer")
+        for code in (
+            "dashboard.view", "reference.view", "budget.view", "expenses.view",
+            "procurement.view", "imports.view", "audit.view", "exceptions.view",
+            "risk.view", "findings.view", "reports.view", "attachments.view",
+        ):
+            self.assertTrue(has_perm(viewer, code), code)
+        for code in (
+            "budget.edit", "expenses.edit", "procurement.edit", "imports.run",
+            "audit.run", "findings.manage", "users.manage",
+        ):
+            self.assertFalse(has_perm(viewer, code), code)
+
+    def test_self_registration_assigns_project_viewer_role(self):
+        user = register_user(
+            email="new.viewer@example.com",
+            password=PW,
+            full_name="مستخدم مستعرض",
+        )
+        self.assertEqual(
+            list(UserRole.objects.filter(user=user).values_list(
+                "role__code", flat=True
+            )),
+            ["viewer"],
+        )
+        self.assertTrue(has_perm(user, "budget.view"))
+        self.assertFalse(has_perm(user, "budget.edit"))
 
     def test_finance_scope(self):
         fin = make_user("fin_user", "finance")

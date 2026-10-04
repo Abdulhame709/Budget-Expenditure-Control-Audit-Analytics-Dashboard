@@ -9,14 +9,66 @@ from django import forms
 
 from .models import (
     Account,
+    Currency,
     Department,
     ExpenseCategory,
     FiscalYear,
     MonthlyPeriod,
+    OrganizationSettings,
     Supplier,
 )
 
 DATE_INPUT = forms.DateInput(attrs={"type": "date", "class": "form-control"})
+
+
+class CurrencyForm(forms.ModelForm):
+    class Meta:
+        model = Currency
+        fields = [
+            "code", "name_ar", "name_en", "symbol", "decimal_places",
+            "exchange_rate_to_base", "is_base", "is_active",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "name_ar": forms.TextInput(attrs={"class": "form-control"}),
+            "name_en": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "symbol": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "decimal_places": forms.NumberInput(attrs={"class": "form-control", "min": 0, "max": 4}),
+            "exchange_rate_to_base": forms.NumberInput(attrs={"class": "form-control", "step": "0.000001", "min": "0.000001", "dir": "ltr"}),
+            "is_base": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+
+class OrganizationSettingsForm(forms.ModelForm):
+    class Meta:
+        model = OrganizationSettings
+        exclude = ["created_by", "updated_by"]
+        widgets = {
+            "organization_name_ar": forms.TextInput(attrs={"class": "form-control"}),
+            "organization_name_en": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "short_name": forms.TextInput(attrs={"class": "form-control"}),
+            "registration_number": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "tax_number": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "country": forms.TextInput(attrs={"class": "form-control"}),
+            "city": forms.TextInput(attrs={"class": "form-control"}),
+            "address": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "phone": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "email": forms.EmailInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "website": forms.URLInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "timezone": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "default_language": forms.Select(attrs={"class": "form-select"}),
+            "fiscal_year_start_month": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 12}),
+            "base_currency": forms.Select(attrs={"class": "form-select"}),
+            "allow_multi_currency": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "date_format": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "thousand_separator": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "decimal_separator": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["base_currency"].queryset = Currency.objects.filter(is_active=True)
 
 
 class FiscalYearForm(forms.ModelForm):

@@ -96,5 +96,12 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 LOGGING["handlers"].pop("file", None)
 LOGGING["root"]["handlers"] = ["console"]
 
-ALLOW_SELF_REGISTRATION = False
+_self_registration = os.environ.get(
+    "DJANGO_ALLOW_SELF_REGISTRATION", "true"
+).strip().lower()
+if _self_registration not in {"true", "false"}:
+    raise ImproperlyConfigured(
+        "DJANGO_ALLOW_SELF_REGISTRATION must be 'true' or 'false'."
+    )
+ALLOW_SELF_REGISTRATION = _self_registration == "true"
 

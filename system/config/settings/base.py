@@ -207,7 +207,7 @@ TEMPLATES = [
 # ---------------------------------------------------------------- auth (foundation)
 AUTH_USER_MODEL = "accounts.User"
 
-# Self-service registration (email-signup) — open in development, closed in production.
+# Self-service registration (email-signup); production may override via environment.
 ALLOW_SELF_REGISTRATION = True
 
 AUTHENTICATION_BACKENDS = ["config.backends.EnvironmentModelBackend"]

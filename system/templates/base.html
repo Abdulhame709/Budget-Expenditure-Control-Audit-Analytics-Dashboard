@@ -52,9 +52,11 @@
               <li><a class="dropdown-item" href="{% url 'reference:account_list' %}">{% if LANGUAGE_CODE == 'en' %}Chart of Accounts{% else %}دليل الحسابات{% endif %}</a></li>
               <li><a class="dropdown-item" href="{% url 'reference:expense_category_list' %}">{% if LANGUAGE_CODE == 'en' %}Expense Categories{% else %}تصنيفات المصروفات{% endif %}</a></li>
               <li><a class="dropdown-item" href="{% url 'reference:supplier_list' %}">{% if LANGUAGE_CODE == 'en' %}Suppliers{% else %}الموردون{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:currency_list' %}">{% if LANGUAGE_CODE == 'en' %}Currencies{% else %}العملات{% endif %}</a></li>
               {% if can_budget %}
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{% url 'budget:budget_list' %}">{% if LANGUAGE_CODE == 'en' %}Budget{% else %}الموازنة{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'budget:template_list' %}">{% if LANGUAGE_CODE == 'en' %}Budget Templates{% else %}نماذج الموازنة التقديرية{% endif %}</a></li>
               {% endif %}
               {% if can_exp %}
               <li><hr class="dropdown-divider"></li>
@@ -78,7 +80,7 @@
           {% perm user "audit.view" as can_audit %}
           {% perm user "exceptions.view" as can_exc %}
           {% perm user "findings.view" as can_find %}
-          {% if can_users or can_roles or can_trail or can_audit or can_exc or can_find or can_settings and CLOUD_SYNC_AVAILABLE %}
+          {% if can_users or can_roles or can_trail or can_audit or can_exc or can_find or can_settings %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
                aria-expanded="false">{% if LANGUAGE_CODE == 'en' %}Administration{% else %}إدارة النظام{% endif %}</a>
@@ -98,6 +100,7 @@
               <li><a class="dropdown-item" href="{% url 'audit:findings_list' %}">{% if LANGUAGE_CODE == 'en' %}Findings & Recommendations{% else %}النتائج والتوصيات{% endif %}</a></li>
               {% endif %}
               {% if can_trail %}<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="{% url 'governance:audit_trail' %}">{% if LANGUAGE_CODE == 'en' %}Audit Trail{% else %}سجل التدقيق{% endif %}</a></li>{% endif %}
+              {% if can_settings %}<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="{% url 'reference:organization_settings' %}">{% if LANGUAGE_CODE == 'en' %}Organization Settings{% else %}إعدادات المنشأة والنظام{% endif %}</a></li>{% endif %}
               {% if can_settings and CLOUD_SYNC_AVAILABLE %}<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="{% url 'governance:cloud_sync' %}">{% if LANGUAGE_CODE == 'en' %}Cloud to Local Sync{% else %}مزامنة السحابة إلى المحلي{% endif %}</a></li>{% endif %}
             </ul>
           </li>

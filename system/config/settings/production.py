@@ -19,6 +19,8 @@ if DEPLOYMENT_ENV not in {"staging", "production"}:
     )
 
 _secret = os.environ.get("DJANGO_SECRET_KEY", "")
+print(f"[VERCEL DEBUG] DJANGO_SECRET_KEY length: {len(_secret)}")
+print(f"[VERCEL DEBUG] DJANGO_SECRET_KEY stripped length: {len(_secret.strip())}")
 if not _secret:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in staging/production.")
 if len(_secret.strip()) < 50:
@@ -148,6 +150,7 @@ LOGGING["root"]["handlers"] = ["console"]
 
 # Production default: self-registration disabled unless explicitly enabled.
 ALLOW_SELF_REGISTRATION = False
+
 
 
 

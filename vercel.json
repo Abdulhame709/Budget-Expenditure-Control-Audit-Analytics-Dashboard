@@ -1,9 +1,9 @@
 {
   "version": 2,
   "name": "budget-audit-analytics",
-  "buildCommand": "pip install -r requirements.txt && cd system && python manage.py collectstatic --noinput",
+  "buildCommand": "pip install -r system/requirements.txt && python system/manage.py collectstatic --noinput",
   "outputDirectory": "system/staticfiles",
-  "installCommand": "pip install -r requirements.txt",
+  "installCommand": "pip install -r system/requirements.txt",
   "functions": {
     "system/vercel_wsgi.py": {
       "runtime": "python3.11",
@@ -12,18 +12,9 @@
     }
   },
   "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "/media/(.*)",
-      "dest": "/media/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "system/vercel_wsgi.py"
-    }
+    { "src": "/static/(.*)", "dest": "/static/$1" },
+    { "src": "/media/(.*)", "dest": "/media/$1" },
+    { "src": "/(.*)", "dest": "system/vercel_wsgi.py" }
   ],
   "env": {
     "DJANGO_SETTINGS_MODULE": "config.settings.production",

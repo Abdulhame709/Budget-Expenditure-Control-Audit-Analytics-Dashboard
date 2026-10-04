@@ -1,0 +1,35 @@
+# Deployment configuration for moneus.com / Vercel / similar
+# -------------------------------------------------------------
+# Django Production Settings
+DJANGO_SETTINGS_MODULE=config.settings.production
+DJANGO_ENV=production
+
+# Security
+DJANGO_SECRET_KEY=5smcu3Xt1981Pi4FgH6sBatYpSA7QPiGGbdEE3QBB-WIR-w0MFet3iVd9N08lvGda_8
+DJANGO_ALLOWED_HOSTS=your-app.moneus.app,localhost,127.0.0.1
+DJANGO_SECURE_SSL_REDIRECT=true
+DJANGO_SECURE_HSTS_SECONDS=31536000
+DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS=true
+DJANGO_SECURE_HSTS_PRELOAD=true
+DJANGO_SECURE_BROWSER_XSS_FILTER=true
+DJANGO_SECURE_CONTENT_TYPE_NOSNIFF=true
+DJANGO_CSRF_TRUSTED_ORIGINS=https://your-app.moneus.app
+
+# Database (Supabase PostgreSQL)
+DATABASE_URL=postgresql://postgres.doehmumbdoaxppqxhnwt:8abduh772600@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
+MIGRATION_DATABASE_URL=postgresql://postgres.doehmumbdoaxppqxhnwt:8abduh772600@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres
+
+# Features
+ALLOW_SELF_REGISTRATION=False
+DJANGO_ALLOW_SYNTHETIC_DATASET=False
+
+# Build & Run Commands
+# -------------------------------------------------------------
+# Build Command:
+#   cd system && pip install -r requirements.txt && python manage.py collectstatic --noinput
+#
+# Start Command (for Gunicorn):
+#   cd system && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2
+#
+# Or if using Dockerfile (auto-detected):
+#   docker build -f system/Dockerfile .

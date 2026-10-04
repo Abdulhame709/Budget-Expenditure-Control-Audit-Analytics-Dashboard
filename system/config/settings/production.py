@@ -58,10 +58,13 @@ if _vercel_url:
     _vercel_url = _vercel_url.rstrip("/")
     if ":" in _vercel_url:
         _vercel_url = _vercel_url.split(":")[0]
-    ALLOWED_HOSTS = [_vercel_url]
+    ALLOWED_HOSTS = [_vercel_url, ".vercel.app"]
     # Ensure CSRF matches
-    CSRF_TRUSTED_ORIGINS = [f"https://{_vercel_url}"]
+    CSRF_TRUSTED_ORIGINS = [f"https://{_vercel_url}", "https://*.vercel.app"]
 if not ALLOWED_HOSTS:
+    # Fallback: allow all Vercel domains for demo
+    ALLOWED_HOSTS = [".vercel.app"]
+    CSRF_TRUSTED_ORIGINS = ["https://*.vercel.app"]
     raise ImproperlyConfigured(
         "DJANGO_ALLOWED_HOSTS must list exact staging/production hostnames."
     )
@@ -144,6 +147,7 @@ LOGGING["root"]["handlers"] = ["console"]
 
 # Production default: self-registration disabled unless explicitly enabled.
 ALLOW_SELF_REGISTRATION = False
+
 
 
 

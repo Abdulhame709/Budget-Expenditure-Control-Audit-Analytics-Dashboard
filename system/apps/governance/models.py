@@ -132,3 +132,49 @@ class Attachment(models.Model):
             return reverse(route, args=[self.entity_id])
         except Exception:
             return reverse("home")
+
+
+class CloudSyncRun(models.Model):
+    """سجل تنفيذ مزامنة آمنة من قاعدة السحابة إلى القاعدة المحلية."""
+
+    STATUS_CHOICES = [
+        ("running", "قيد التنفيذ"),
+        ("completed", "مكتملة"),
+        ("partial", "مكتملة مع تعارضات"),
+        ("failed", "فشلت"),
+    ]
+
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="running")
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cloud_sync_runs",
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    summary = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "cloud_sync_runs"
+        ordering = ["-started_at"]
+
+
+class CloudSyncRecordState(models.Model):
+    """بصمة آخر نسخة سحابية ناجحة، لاكتشاف التعارض دون مسح المحلي."""
+
+    model_label = models.CharField(max_length=120)
+    object_pk = models.CharField(max_length=128)
+    cloud_hash = models.CharField(max_length=64)
+    synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "cloud_sync_record_states"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["model_label", "object_pk"],
+                name="uq_cloud_sync_record_state",
+            ),
+        ]

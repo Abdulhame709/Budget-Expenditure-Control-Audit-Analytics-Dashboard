@@ -1,7 +1,16 @@
-from django.shortcuts import render
+from django.conf import settings
+from django.contrib import messages
+from django.shortcuts import redirect, render
 
 from apps.accounts.permissions import require_permission
-from apps.governance.models import AuditLog
+from apps.governance.cloud_sync import (
+    CloudSyncBusy,
+    CloudSyncUnavailable,
+    cloud_connection_status,
+    storage_sync_configured,
+    sync_cloud_to_local,
+)
+from apps.governance.models import AuditLog, CloudSyncRun
 
 
 @require_permission("audittrail.view")
@@ -29,14 +38,53 @@ def audit_trail(request):
     })
 
 
+@require_permission("settings.manage")
+def cloud_sync(request):
+    if settings.DEPLOYMENT_ENV != "development":
+        messages.error(request, "مزامنة السحابة متاحة في النسخة المحلية فقط.")
+        return redirect("home")
+
+    if request.method == "POST":
+        if request.POST.get("confirmation", "").strip() != "مزامنة":
+            messages.error(request, "اكتب كلمة «مزامنة» لتأكيد العملية.")
+        else:
+            try:
+                run = sync_cloud_to_local(
+                    started_by=request.user,
+                    include_files=request.POST.get("include_files") == "on",
+                )
+            except (CloudSyncUnavailable, CloudSyncBusy) as exc:
+                messages.error(request, str(exc))
+            except Exception as exc:
+                messages.error(request, f"فشلت المزامنة: {exc}")
+            else:
+                summary = run.summary
+                messages.success(
+                    request,
+                    "اكتملت المزامنة: "
+                    f"{summary['added']} إضافة، {summary['updated']} تحديث، "
+                    f"{summary['local_preserved']} تعديل محلي محفوظ، "
+                    f"{summary['conflicts']} تعارض.",
+                )
+            return redirect("governance:cloud_sync")
+
+    connected, connection_message = cloud_connection_status()
+    return render(request, "governance/cloud_sync.html", {
+        "connected": connected,
+        "connection_message": connection_message,
+        "storage_configured": storage_sync_configured(),
+        "last_run": CloudSyncRun.objects.first(),
+        "recent_runs": CloudSyncRun.objects.all()[:10],
+    })
+
+
 # ============================================================ PHASE 12
-from django.contrib import messages  # noqa: E402
 from django.db.models import Q  # noqa: E402
 from django.http import (  # noqa: E402
     FileResponse,
     HttpResponseBadRequest,
 )
-from django.shortcuts import get_object_or_404, redirect  # noqa: E402
+from django.shortcuts import get_object_or_404  # noqa: E402
 
 from apps.accounts.permissions import require_permission  # noqa: E402
 from apps.governance.models import Attachment  # noqa: E402

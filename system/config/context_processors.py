@@ -12,4 +12,8 @@ def system_identity(request):
         "SYSTEM_MODE": settings.SYSTEM_MODE,
         "IS_OPERATIONAL_MODE": settings.IS_OPERATIONAL_MODE,
         "DATABASE_PLATFORM_LABEL": settings.DATABASE_PLATFORM_LABEL,
+        "CLOUD_SYNC_AVAILABLE": (
+            settings.DEPLOYMENT_ENV == "development"
+            and "cloud" in settings.DATABASES
+        ),
     }

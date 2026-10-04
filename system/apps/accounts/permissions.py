@@ -217,6 +217,7 @@ URL_PERMISSIONS.update({
     "governance:attachment_upload": "attachments.manage",
     "governance:attachment_view": "attachments.view",
     "governance:attachment_download": "attachments.view",
+    "governance:cloud_sync": "settings.manage",
 })
 
 # ---------------------------------------------------------------- helpers

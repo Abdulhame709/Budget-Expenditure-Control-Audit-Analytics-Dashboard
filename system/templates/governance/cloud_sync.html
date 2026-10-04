@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}مزامنة السحابة إلى المحلي{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <span class="page-kicker">العمل دون اتصال</span>
+    <h1 class="h3 mb-2">مزامنة Supabase إلى PostgreSQL المحلي</h1>
+    <p class="text-muted mb-0">اتجاه واحد فقط: السحابة ← المحلي. لا تُحذف السجلات المحلية ولا تُرفع تعديلاتك المحلية إلى السحابة.</p>
+  </div>
+  <span class="badge {% if connected %}text-bg-success{% else %}text-bg-danger{% endif %} fs-6">
+    {% if connected %}متصل بالسحابة{% else %}غير متصل{% endif %}
+  </span>
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-lg-7">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <h2 class="h5">تنفيذ المزامنة</h2>
+        <p class="alert {% if connected %}alert-success{% else %}alert-warning{% endif %}">{{ connection_message }}</p>
+        <ul class="small text-muted">
+          <li>السجل الجديد سحابيًا يُضاف محليًا.</li>
+          <li>التغيير السحابي يُطبّق فقط إذا لم تعدّل السجل محليًا بعد آخر مزامنة.</li>
+          <li>عند تعديل الطرفين يُسجل تعارض ويُحفظ السجل المحلي دون استبدال.</li>
+          <li>حذف سجل من السحابة لا يحذفه من القاعدة المحلية.</li>
+        </ul>
+        <form method="post" class="mt-4">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="confirmation" class="form-label">اكتب كلمة <strong>مزامنة</strong> للتأكيد</label>
+            <input id="confirmation" name="confirmation" class="form-control" autocomplete="off" required>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="include_files" id="include_files" {% if not storage_configured %}disabled{% endif %}>
+            <label class="form-check-label" for="include_files">تنزيل الملفات والمرفقات إلى الجهاز المحلي</label>
+            {% if not storage_configured %}<div class="form-text">يتطلب مفتاح Supabase S3 مخصصًا في ملف <code>system/.env</code>. ستتم مزامنة بيانات السجلات بدونه.</div>{% endif %}
+          </div>
+          <button class="btn btn-primary" type="submit" {% if not connected %}disabled{% endif %}>بدء المزامنة الآن</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-5">
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body p-4">
+        <h2 class="h5">آخر نتيجة</h2>
+        {% if last_run %}
+          <dl class="row small mb-0">
+            <dt class="col-5">الحالة</dt><dd class="col-7">{{ last_run.get_status_display }}</dd>
+            <dt class="col-5">البدء</dt><dd class="col-7">{{ last_run.started_at }}</dd>
+            <dt class="col-5">إضافات</dt><dd class="col-7">{{ last_run.summary.added|default:0 }}</dd>
+            <dt class="col-5">تحديثات</dt><dd class="col-7">{{ last_run.summary.updated|default:0 }}</dd>
+            <dt class="col-5">محلي محفوظ</dt><dd class="col-7">{{ last_run.summary.local_preserved|default:0 }}</dd>
+            <dt class="col-5">تعارضات</dt><dd class="col-7">{{ last_run.summary.conflicts|default:0 }}</dd>
+          </dl>
+          {% if last_run.error %}<div class="alert alert-danger mt-3 mb-0">{{ last_run.error }}</div>{% endif %}
+          {% if last_run.summary.conflict_records %}
+          <details class="mt-3">
+            <summary>عرض السجلات المتعارضة</summary>
+            <ul class="small mt-2 mb-0">
+              {% for record in last_run.summary.conflict_records|slice:":20" %}<li><code>{{ record }}</code></li>{% endfor %}
+            </ul>
+            {% if last_run.summary.conflicts > 20 %}<div class="form-text">تظهر أول 20 حالة فقط.</div>{% endif %}
+          </details>
+          {% endif %}
+        {% else %}<p class="text-muted mb-0">لم تُنفذ مزامنة بعد.</p>{% endif %}
+      </div>
+    </div>
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4">
+        <h2 class="h6">سجل العمليات</h2>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0"><thead><tr><th>الوقت</th><th>الحالة</th><th>التعارضات</th></tr></thead><tbody>
+          {% for run in recent_runs %}<tr><td>{{ run.started_at|date:"Y-m-d H:i" }}</td><td>{{ run.get_status_display }}</td><td>{{ run.summary.conflicts|default:0 }}</td></tr>{% empty %}<tr><td colspan="3" class="text-muted">لا توجد عمليات.</td></tr>{% endfor %}
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

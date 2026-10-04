@@ -49,6 +49,8 @@ def _is_exact_host(value: str) -> bool:
     return len(labels) >= 2 and all(_HOST_LABEL.fullmatch(label) for label in labels)
 
 
+if os.environ.get("VERCEL_URL"):
+    ALLOWED_HOSTS = [os.environ["VERCEL_URL"].strip().lower().rstrip(".")]
 if not ALLOWED_HOSTS:
     raise ImproperlyConfigured(
         "DJANGO_ALLOWED_HOSTS must list exact staging/production hostnames."
@@ -148,3 +150,6 @@ LOGGING["root"]["handlers"] = ["console"]
 
 # Production default: self-registration disabled unless explicitly enabled.
 ALLOW_SELF_REGISTRATION = False
+
+
+

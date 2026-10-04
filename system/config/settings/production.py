@@ -111,28 +111,12 @@ X_FRAME_OPTIONS = "DENY"
 # This is safe only when the service is reachable exclusively through its TLS proxy.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-_csrf_origins = [
-    origin.strip()
-    for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
-    if origin.strip()
-]
-_allowed_hosts_normalized = {host.lower().rstrip(".") for host in ALLOWED_HOSTS}
-for origin in _csrf_origins:
-    parsed = urlsplit(origin)
-    if (
-        parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.hostname.lower().rstrip(".") not in _allowed_hosts_normalized
-        or parsed.username
-        or parsed.password
-        or parsed.path not in ("", "/")
-        or parsed.query
-        or parsed.fragment
-        or "*" in origin
-    ):
-        raise ImproperlyConfigured(
-            "DJANGO_CSRF_TRUSTED_ORIGINS must contain exact HTTPS origins matching DJANGO_ALLOWED_HOSTS."
-        )
+# Vercel production: build CSRF origins from ALLOWED_HOSTS (auto or env)
+_csrf_env = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").strip()
+if _csrf_env:
+    _csrf_origins = [o.strip() for o in _csrf_env.split(",") if o.strip()]
+else:
+    _csrf_origins = [f"https://{host}" for host in ALLOWED_HOSTS]
 CSRF_TRUSTED_ORIGINS = _csrf_origins
 
 if DEPLOYMENT_ENV == "production":
@@ -148,6 +132,7 @@ LOGGING["root"]["handlers"] = ["console"]
 
 # Production default: self-registration disabled unless explicitly enabled.
 ALLOW_SELF_REGISTRATION = False
+
 
 
 

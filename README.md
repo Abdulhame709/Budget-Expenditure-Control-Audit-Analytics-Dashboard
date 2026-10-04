@@ -5,13 +5,11 @@
 | **Project** | Budget & Expenditure Control — Audit Analytics System |
 | **Author / Owner** | Abdulhameed — Internal Audit & Financial Review Professional |
 | **Role** | Internal Audit & Financial Review Professional |
-| **Nature** | Professional Proof-of-Work / Training & Demonstration System |
-| **Dataset / Data** | Synthetic Training Data |
-| **Technology** | Django + PostgreSQL + Bootstrap RTL |
+| **Nature** | Operational Financial Control System |
+| **Data Architecture** | Supabase PostgreSQL للإنتاج + PostgreSQL محلي للتطوير |
+| **Technology** | Django + PostgreSQL + Bootstrap RTL + Vercel |
 
-> ⚠️ **Synthetic Data** — كل البيانات في هذا النظام **اصطناعية بالكامل** (FY2026: أرقام وأقسام وموردون وهمية). لا تمثل أي جهة حقيقية، ولا علاقة لأي رقم أو اسم بجهة عمل المؤلف، ولا تُستخدم لأي قرار فعلي.
->
-> **All data is 100% synthetic.** No real entity, client, employer, or real-world figure is represented anywhere in this repository.
+> ✅ **Operational Mode** — تعمل بيئة الإنتاج بوضع `operational`، وتستخدم Supabase PostgreSQL. تم تعطيل تحميل البيانات التدريبية وإزالة إشعارها من واجهة الإنتاج. تبقى fixtures والبيانات الاختبارية — إن وجدت — محصورة في التطوير والاختبارات ولا تُحمّل تلقائيًا إلى الإنتاج.
 
 > 🧍 **Ownership** — المالك: **Abdulhameed (Internal Audit & Financial Review Professional)**. لا توجد أي شركة حقيقية كـ Owner أو Client أو Employer في هذا المشروع.
 
@@ -21,7 +19,7 @@
 
 نظام داخلي (Internal Use) لمراقبة الموازنة مقابل التنفيذ (Budget vs Actual)، وتدقيق المصروفات والمشتريات، واكتشاف الاستثناءات وتصنيف المخاطر — بواجهة عربية RTL كاملة، ومحرك تدقيق من 14 اختبارًا آليًا، وتقارير قابلة للطباعة والتصدير.
 
-**الحالة**: تأهيل إنتاجي مرحلي — مستودع GitHub العام متاح على `main` (آخر دمج متحقق: PR #4، commit `619725b` بتاريخ 2026-10-02) · صفحة Demo على Manus أعادت `HTTP GET 200` في 2026-10-02، لكن مطابقة النسخة المعروضة مع `main` وإعدادات المزوّد غير متحققة · **خط الأساس المحلي الموثق**: 353 اختبارًا آليًا ✅ · Django 5.2 · PostgreSQL حصريًا (لا SQLite). اجتياز الاختبارات أو وصول رابط العرض لا يثبت جاهزية مزوّد الاستضافة أو النطاق أو النسخ والاستعادة.
+**الحالة**: نسخة تشغيلية منشورة على Vercel ومرتبطة بـSupabase PostgreSQL. تم التحقق من نشر commit `11fe1ae` بتاريخ 2026-10-04، ونجاح `collectstatic`، واتصال قاعدة البيانات، وملفات static، وسجلات التشغيل. راجع [تقرير الإصلاحات والإنجازات الفنية](IMPLEMENTATION_AND_DEPLOYMENT_REPORT_2026-10-04.md) للتفاصيل ونتائج الفحص.
 
 ---
 
@@ -35,7 +33,7 @@
 >
 > **Result:** The automated engine independently evaluated a synthetic dataset of 43 expenses and 9 procurement cases, matching 28 Ground-Truth Control Exceptions with zero false positives against the predefined Ground-Truth test set across high, medium, and low risk tiers. The full analytical output contains 264 exception rows/records; these are not 264 independent cases.
 >
-> **Evidence:** The documented local PostgreSQL suite passes 353 automated tests and the published evidence hashes verify. The Manus demo returned HTTP GET 200 on 2026-10-02; the served revision has not been matched to the current GitHub `main`, and provider configuration/production readiness remain unverified. All training data remains synthetic.
+> **Evidence:** The historical proof-of-work benchmark uses isolated test data. The current production deployment is documented separately in the [implementation and deployment report](IMPLEMENTATION_AND_DEPLOYMENT_REPORT_2026-10-04.md).
 
 *المستندات الكاملة لحزمة الـ Proof-of-Work متوفرة في المجلد [`output/phase19_proof_of_work/`](output/phase19_proof_of_work/):*
 - [`PROJECT_PROOF.md`](output/phase19_proof_of_work/PROJECT_PROOF.md) — وثيقة إثبات المشروع (Problem · Owner · Solution · Role · Tools · Evidence · Impact · Link)
@@ -276,8 +274,8 @@ sha256sum -c evidence/checksums.txt     # بعد أي clone: OK×7 · صفر خ�
 | الطبقة | المزوّد | المسؤولية |
 |---|---|---|
 | **Source repository** | **GitHub** | الكود المصدري + README + الأدلة فقط. **لا يوفّر** قاعدة بيانات ولا استضافة تطبيق. |
-| **Database** | **PostgreSQL provider** (منفصل — مزوّد/خادم خاص بك) | قاعدة `audit_budget_system` + `pg_dump` احتياطي. مطلوب إنشاؤه خارج GitHub. |
-| **Application hosting** | **Deployment provider** (منفصل) | تشغيل gunicorn خلف proxy (TLS + `/media/`) + `collectstatic` + متغيّرات الإنتاج. |
+| **Database** | **Supabase PostgreSQL** + PostgreSQL محلي | قاعدة الإنتاج السحابية منفصلة عن قاعدة التطوير المحلية، مع نسخ احتياطية مستقلة. |
+| **Application hosting** | **Vercel** | تشغيل Django serverless + `collectstatic` وقت البناء + متغيّرات الإنتاج. |
 
 ```
 GitHub (source) ──deploy──▶ App host (gunicorn/nginx) ──DATABASE_URL──▶ PostgreSQL provider
@@ -292,4 +290,4 @@ GitHub (source) ──deploy──▶ App host (gunicorn/nginx) ──DATABASE_U
 
 ## Disclaimer
 
-نظام تدريب/عرض (**Professional Proof-of-Work · Training & Demonstration System**) — لا يُستخدم كأداة تدقيق فعلية، ولا يمثل أي جهة حقيقية. البيانات: **Synthetic Training Data**. Live Preview/التطوير ≠ Production.
+النظام يعمل بوضع تشغيلي، لكن صحة النتائج الرقابية تعتمد على جودة البيانات والإعدادات والصلاحيات وإجراءات المراجعة البشرية. يجب اختبار النسخ الاحتياطي والاستعادة ومراجعة الضوابط قبل الاعتماد المؤسسي الكامل.

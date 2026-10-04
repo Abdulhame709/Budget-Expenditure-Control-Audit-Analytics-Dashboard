@@ -6,6 +6,7 @@ dj-database-url>=2.2
 python-dotenv>=1.0
 whitenoise>=6.8
 gunicorn>=23.0
+django-storages[s3]>=1.14,<2
 # pgserver: bundles genuine PostgreSQL server binaries for local dev —
 # required because apt mirrors are blocked in this environment (documented Blocker).
 pgserver; sys_platform == "win32"

@@ -9,7 +9,7 @@
 | **Data Architecture** | Supabase PostgreSQL للإنتاج + PostgreSQL محلي للتطوير |
 | **Technology** | Django + PostgreSQL + Bootstrap RTL + Vercel |
 
-> ✅ **Operational Mode** — تعمل بيئة الإنتاج بوضع `operational`، وتستخدم Supabase PostgreSQL. تم تعطيل تحميل البيانات التدريبية وإزالة إشعارها من واجهة الإنتاج. تبقى fixtures والبيانات الاختبارية — إن وجدت — محصورة في التطوير والاختبارات ولا تُحمّل تلقائيًا إلى الإنتاج.
+> ✅ **Operational Mode** — تعمل بيئة الإنتاج بوضع `operational`، وتستخدم Supabase PostgreSQL للسجلات وSupabase Storage لحفظ ملفات الاستيراد الأصلية بصورة دائمة. تم تعطيل تحميل البيانات التدريبية وإزالة إشعارها من واجهة الإنتاج. تبقى fixtures والبيانات الاختبارية — إن وجدت — محصورة في التطوير والاختبارات ولا تُحمّل تلقائيًا إلى الإنتاج.
 
 > 🧍 **Ownership** — المالك: **Abdulhameed (Internal Audit & Financial Review Professional)**. لا توجد أي شركة حقيقية كـ Owner أو Client أو Employer في هذا المشروع.
 

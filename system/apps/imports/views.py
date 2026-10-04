@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -59,6 +60,16 @@ def import_list(request):
 @require_http_methods(["GET", "POST"])
 def import_new(request):
     form = ImportUploadForm(request.POST or None, files=request.FILES or None)
+    if (
+        request.method == "POST"
+        and settings.DEPLOYMENT_ENV in {"staging", "production"}
+        and not settings.IMPORT_FILE_STORAGE_CONFIGURED
+    ):
+        form.add_error(
+            "source_file",
+            "تخزين ملفات الاستيراد الدائم غير مهيأ؛ لم يتم حفظ الملف أو استيراد أي بيانات.",
+        )
+        return render(request, "imports/new.html", {"form": form})
     if request.method == "POST" and form.is_valid():
         upload = form.cleaned_data["source_file"]
         try:

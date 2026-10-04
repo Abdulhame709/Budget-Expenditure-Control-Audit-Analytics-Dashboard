@@ -133,6 +133,7 @@ else:
     DATABASE_PLATFORM_LABEL = "PostgreSQL محلي"
 SUPABASE_PROJECT_REF = os.environ.get("SUPABASE_PROJECT_REF", "").strip()
 SUPABASE_DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "").strip()
+IMPORT_FILE_STORAGE_CONFIGURED = False
 if SUPABASE_DATABASE_URL:
     _cloud_database_config = dj_database_url.parse(
         SUPABASE_DATABASE_URL,

@@ -20,7 +20,7 @@
         <span class="badge {% if db_ok %}text-bg-success{% else %}text-bg-danger{% endif %}">{% if db_ok %}{% if LANGUAGE_CODE == 'en' %}Connected{% else %}متصل{% endif %}{% else %}{% if LANGUAGE_CODE == 'en' %}Offline{% else %}غير متصل{% endif %}{% endif %}</span>
       </div>
       <div class="status-label">{% if LANGUAGE_CODE == 'en' %}Core Database{% else %}قاعدة البيانات الرئيسية{% endif %}</div>
-      <div class="status-value">{% if LANGUAGE_CODE == 'en' %}Local PostgreSQL{% else %}PostgreSQL محلي{% endif %}</div>
+      <div class="status-value">{{ database_platform_label }}</div>
     </div>
   </div>
 
@@ -28,16 +28,14 @@
     <div class="status-card h-100">
       <div class="status-card-head">
         <span class="status-icon cloud-icon">S</span>
-        {% if cloud_status == "connected" %}
+        {% if storage_status == "connected" %}
           <span class="badge text-bg-success">{% if LANGUAGE_CODE == 'en' %}Connected{% else %}متصل{% endif %}</span>
-        {% elif cloud_status == "error" %}
-          <span class="badge text-bg-danger">{% if LANGUAGE_CODE == 'en' %}Connection error{% else %}خطأ اتصال{% endif %}</span>
         {% else %}
-          <span class="badge text-bg-warning">{% if LANGUAGE_CODE == 'en' %}Awaiting link setup{% else %}بانتظار بيانات الربط{% endif %}</span>
+          <span class="badge text-bg-danger">{% if LANGUAGE_CODE == 'en' %}Not configured{% else %}غير مهيأ{% endif %}</span>
         {% endif %}
       </div>
-      <div class="status-label">{% if LANGUAGE_CODE == 'en' %}Cloud Storage (Optional){% else %}التخزين السحابي المؤقت{% endif %}</div>
-      <div class="status-value">{% if LANGUAGE_CODE == 'en' %}Supabase{% else %}Supabase{% endif %}</div>
+      <div class="status-label">{% if LANGUAGE_CODE == 'en' %}Persistent Import File Storage{% else %}تخزين ملفات الاستيراد الدائم{% endif %}</div>
+      <div class="status-value">Supabase Storage</div>
     </div>
   </div>
 

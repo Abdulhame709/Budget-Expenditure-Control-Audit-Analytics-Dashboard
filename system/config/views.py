@@ -7,7 +7,7 @@ from pathlib import Path
 import django
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
-from django.db import DatabaseError, connection, connections
+from django.db import DatabaseError, connection
 from django.http import HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
@@ -22,20 +22,6 @@ def _db_status() -> tuple[bool, str, str]:
         return True, connection.vendor, connection.settings_dict.get("NAME", "")
     except DatabaseError as exc:
         return False, connection.vendor, str(exc)[:120]
-
-
-def _cloud_db_status() -> tuple[str, str]:
-    if not settings.SUPABASE_PROJECT_REF:
-        return "unconfigured", "لم يُحدَّد مشروع Supabase"
-    if "cloud" not in connections:
-        return "pending", "المشروع معروف؛ بيانات اتصال قاعدة البيانات غير مضافة"
-    try:
-        with connections["cloud"].cursor() as cursor:
-            cursor.execute("SELECT current_database()")
-            database_name = cursor.fetchone()[0]
-        return "connected", database_name
-    except Exception:
-        return "error", "تعذّر الاتصال بقاعدة Supabase"
 
 
 @require_GET
@@ -72,7 +58,6 @@ def home(request):
 
     show_environment_details = settings.DEPLOYMENT_ENV == "development"
     db_ok, db_vendor, db_name = _db_status()
-    cloud_status, cloud_detail = _cloud_db_status()
     from apps.budget.models import BudgetLine
     from apps.expenses.models import Expense
     from apps.procurement.models import Procurement
@@ -87,8 +72,11 @@ def home(request):
         "db_name": db_name,
         "db_host": connection.settings_dict.get("HOST", "localhost"),
         "db_port": connection.settings_dict.get("PORT", "5432"),
-        "cloud_status": cloud_status,
-        "cloud_detail": cloud_detail,
+        "database_platform_label": settings.DATABASE_PLATFORM_LABEL,
+        "storage_status": (
+            "connected" if settings.IMPORT_FILE_STORAGE_CONFIGURED
+            else "unconfigured"
+        ),
         "supabase_project_ref": settings.SUPABASE_PROJECT_REF,
         "record_counts": {
             "departments": Department.objects.count(),

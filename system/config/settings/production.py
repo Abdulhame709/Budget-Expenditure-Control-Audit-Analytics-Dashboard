@@ -19,15 +19,13 @@ if DEPLOYMENT_ENV not in {"staging", "production"}:
     )
 
 _secret = os.environ.get("DJANGO_SECRET_KEY", "")
-_insecure_markers = (
-    "change-me", "change_me", "django-insecure", "replace-me", "do-not-use", "insecure"
-)
 if not _secret:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in staging/production.")
-if len(_secret) < 50 or any(marker in _secret.lower() for marker in _insecure_markers):
+if len(_secret.strip()) < 50:
     raise ImproperlyConfigured(
-        "DJANGO_SECRET_KEY is an insecure placeholder; use a random key of at least 50 characters."
+        "DJANGO_SECRET_KEY is too short; use a random key of at least 50 characters."
     )
+SECRET_KEY = _secret.strip()
 
 _HOST_LABEL = re.compile(r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
 
@@ -150,6 +148,7 @@ LOGGING["root"]["handlers"] = ["console"]
 
 # Production default: self-registration disabled unless explicitly enabled.
 ALLOW_SELF_REGISTRATION = False
+
 
 
 

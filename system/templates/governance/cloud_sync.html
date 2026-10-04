@@ -20,6 +20,7 @@
       <div class="card-body p-4">
         <h2 class="h5">تنفيذ المزامنة</h2>
         <p class="alert {% if connected %}alert-success{% else %}alert-warning{% endif %}">{{ connection_message }}</p>
+        <p class="small text-muted">كلمة «مزامنة» ليست كلمة مرور؛ هي تأكيد أمان لمنع تشغيل نقل البيانات بالخطأ.</p>
         <ul class="small text-muted">
           <li>السجل الجديد سحابيًا يُضاف محليًا.</li>
           <li>التغيير السحابي يُطبّق فقط إذا لم تعدّل السجل محليًا بعد آخر مزامنة.</li>
@@ -35,7 +36,7 @@
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" name="include_files" id="include_files" {% if not storage_configured %}disabled{% endif %}>
             <label class="form-check-label" for="include_files">تنزيل الملفات والمرفقات إلى الجهاز المحلي</label>
-            {% if not storage_configured %}<div class="form-text">يتطلب مفتاح Supabase S3 مخصصًا في ملف <code>system/.env</code>. ستتم مزامنة بيانات السجلات بدونه.</div>{% endif %}
+            {% if not storage_configured %}<div class="form-text">تنزيل الملفات اختياري ويتطلب مفاتيح S3 مخصصة للاستخدام على الخادم فقط في <code>system/.env</code>. لا تضع هذه المفاتيح في المتصفح أو GitHub. ستتم مزامنة بيانات السجلات كاملة بدونها.</div>{% endif %}
           </div>
           <button class="btn btn-primary" type="submit" {% if not connected %}disabled{% endif %}>بدء المزامنة الآن</button>
         </form>

@@ -19,6 +19,8 @@ MODEL_LABELS = (
     "accounts.User",
     "accounts.Role",
     "accounts.Permission",
+    "reference.Currency",
+    "reference.OrganizationSettings",
     "reference.FiscalYear",
     "reference.MonthlyPeriod",
     "reference.Department",
@@ -30,6 +32,11 @@ MODEL_LABELS = (
     "budget.Budget",
     "budget.BudgetVersion",
     "budget.BudgetLine",
+    "budget.BudgetTemplate",
+    "budget.BudgetTemplateSheet",
+    "budget.BudgetTemplateColumn",
+    "budget.BudgetTemplateRow",
+    "budget.BudgetTemplateCell",
     "expenses.Expense",
     "procurement.Procurement",
     "procurement.Quotation",
@@ -59,6 +66,8 @@ class CloudSyncBusy(RuntimeError):
 def cloud_connection_status() -> tuple[bool, str]:
     if settings.DEPLOYMENT_ENV != "development":
         return False, "المزامنة متاحة في النسخة المحلية فقط."
+    if getattr(settings, "LOCAL_DATA_SOURCE", "local") == "cloud":
+        return False, "الوضع المتصل يستخدم قاعدة Supabase مباشرة؛ لا حاجة للمزامنة."
     if "cloud" not in settings.DATABASES:
         return False, "أضف SUPABASE_DATABASE_URL إلى ملف system/.env."
     try:

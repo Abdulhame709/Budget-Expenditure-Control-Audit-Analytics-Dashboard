@@ -3,7 +3,9 @@ param(
     [string]$Action = "status",
     [string]$PackageIndexUrl = "",
     [ValidateSet("127.0.0.1", "0.0.0.0")]
-    [string]$BindAddress = "127.0.0.1"
+    [string]$BindAddress = "127.0.0.1",
+    [ValidateSet("local", "cloud")]
+    [string]$DataSource = "local"
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,6 +87,7 @@ function Start-LocalDatabase {
 
 function Set-DjangoEnvironment {
     $env:DATABASE_URL = $DatabaseUrl
+    $env:AUDIT_LOCAL_DATA_SOURCE = $DataSource
     $env:DJANGO_SETTINGS_MODULE = "config.settings.development"
     $env:DJANGO_DEV_HTTPS_COOKIES = "false"
     $env:SYSTEM_MODE = "operational"
@@ -199,7 +202,9 @@ switch ($Action) {
         Show-Status
     }
     "start" {
-        Start-LocalDatabase
+        if ($DataSource -eq "local") {
+            Start-LocalDatabase
+        }
         Start-Django
         Show-Status
     }

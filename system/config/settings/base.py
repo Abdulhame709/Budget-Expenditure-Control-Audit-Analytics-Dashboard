@@ -81,6 +81,15 @@ DEBUG = False
 ALLOWED_HOSTS: list[str] = [
     h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()
 ]
+SUPABASE_PROJECT_REF = os.environ.get("SUPABASE_PROJECT_REF", "").strip()
+SUPABASE_DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "").strip()
+LOCAL_DATA_SOURCE = os.environ.get("AUDIT_LOCAL_DATA_SOURCE", "local").strip().lower()
+if LOCAL_DATA_SOURCE not in {"local", "cloud"}:
+    raise ImproperlyConfigured("AUDIT_LOCAL_DATA_SOURCE must be local or cloud.")
+if DEPLOYMENT_ENV != "development":
+    LOCAL_DATA_SOURCE = "cloud" if "supabase.com" in os.environ.get(
+        "DATABASE_URL", ""
+    ).lower() else "local"
 
 # ---------------------------------------------------------------- database
 # PostgreSQL only. Web processes use the runtime role; a release/migration task
@@ -98,6 +107,12 @@ if _migration_flag == "true":
         raise ImproperlyConfigured(
             "DJANGO_USE_MIGRATION_DATABASE=true requires MIGRATION_DATABASE_URL."
         )
+elif LOCAL_DATA_SOURCE == "cloud":
+    DATABASE_URL = SUPABASE_DATABASE_URL
+    if not DATABASE_URL:
+        raise ImproperlyConfigured(
+            "AUDIT_LOCAL_DATA_SOURCE=cloud requires SUPABASE_DATABASE_URL."
+        )
 else:
     DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 if not DATABASE_URL:
@@ -109,7 +124,7 @@ _database_config = dj_database_url.parse(
     DATABASE_URL,
     conn_max_age=600,
     conn_health_checks=True,
-    ssl_require=IS_SECURE_ENVIRONMENT,
+    ssl_require=IS_SECURE_ENVIRONMENT or LOCAL_DATA_SOURCE == "cloud",
 )
 if _database_config.get("ENGINE") != "django.db.backends.postgresql":
     raise ImproperlyConfigured(
@@ -131,10 +146,8 @@ elif IS_SECURE_ENVIRONMENT:
     DATABASE_PLATFORM_LABEL = "PostgreSQL سحابي"
 else:
     DATABASE_PLATFORM_LABEL = "PostgreSQL محلي"
-SUPABASE_PROJECT_REF = os.environ.get("SUPABASE_PROJECT_REF", "").strip()
-SUPABASE_DATABASE_URL = os.environ.get("SUPABASE_DATABASE_URL", "").strip()
 IMPORT_FILE_STORAGE_CONFIGURED = False
-if SUPABASE_DATABASE_URL:
+if SUPABASE_DATABASE_URL and LOCAL_DATA_SOURCE == "local":
     _cloud_database_config = dj_database_url.parse(
         SUPABASE_DATABASE_URL,
         conn_max_age=60,

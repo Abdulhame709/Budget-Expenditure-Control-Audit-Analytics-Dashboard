@@ -402,12 +402,18 @@ class BudgetPlanLine(TimeStampedModel):
     INPUT_MONTHLY = "monthly"
     INPUT_QUANTITY_PRICE = "quantity_price"
     INPUT_PERIODIC = "periodic"
+    INPUT_DAYS_WORKERS = "days_workers"
+    INPUT_HOURS_WORKERS = "hours_workers"
+    INPUT_PERCENTAGE = "percentage"
     INPUT_MODE_CHOICES = [
         (INPUT_NONE, "بدون إدخال"),
         (INPUT_ANNUAL, "مبلغ سنوي"),
         (INPUT_MONTHLY, "مبالغ شهرية"),
         (INPUT_QUANTITY_PRICE, "كمية × سعر وحدة"),
         (INPUT_PERIODIC, "مبلغ دوري × عدد الفترات"),
+        (INPUT_DAYS_WORKERS, "أيام × عدد العاملين × سعر اليوم"),
+        (INPUT_HOURS_WORKERS, "ساعات × عدد العاملين × سعر الساعة"),
+        (INPUT_PERCENTAGE, "نسبة مئوية من مبلغ أساس"),
     ]
 
     DIST_NONE = "none"
@@ -476,6 +482,27 @@ class BudgetPlanLine(TimeStampedModel):
         validators=[MinValueValidator(0)],
     )
     periods_count = models.PositiveSmallIntegerField("عدد الفترات", default=0)
+    days_count = models.DecimalField(
+        "عدد الأيام", max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    hours_count = models.DecimalField(
+        "عدد الساعات", max_digits=10, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    workers_count = models.PositiveIntegerField("عدد العاملين", default=0)
+    rate_amount = models.DecimalField(
+        "سعر اليوم / الساعة", max_digits=14, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    base_amount = models.DecimalField(
+        "مبلغ الأساس", max_digits=14, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    percentage_rate = models.DecimalField(
+        "النسبة المئوية", max_digits=7, decimal_places=4, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
     single_month = models.PositiveSmallIntegerField(
         "شهر الصرف", null=True, blank=True,
         validators=[MinValueValidator(1), MaxValueValidator(12)],

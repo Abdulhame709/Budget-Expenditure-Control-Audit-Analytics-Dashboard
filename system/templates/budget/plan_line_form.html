@@ -29,7 +29,7 @@
   const inputRows=new Set(['analytical_account','detail']);
   const accountRows=new Set(['main_account','analytical_account','detail']);
   const totalRows=new Set(['subtotal','total']);
-  const controlled=['main_account','analytical_account','department','employee','unit_of_measure','input_mode','distribution_method','annual_amount','quantity','unit_price','periodic_amount','periods_count','single_month','selected_months','aggregate_sections','estimation_basis','is_included'];
+  const controlled=['main_account','analytical_account','department','employee','unit_of_measure','input_mode','distribution_method','annual_amount','quantity','unit_price','periodic_amount','periods_count','days_count','hours_count','workers_count','rate_amount','base_amount','percentage_rate','single_month','selected_months','aggregate_sections','estimation_basis','is_included'];
   const field=name=>document.querySelector(`[data-field="${name}"]`);
   const show=(name,visible)=>{const element=field(name); if(element)element.hidden=!visible;};
   const number=id=>Number.parseFloat(document.getElementById(id)?.value||0)||0;
@@ -41,6 +41,9 @@
     if(inputMode?.value==='monthly')total=[...Array(12)].reduce((sum,_,index)=>sum+number(`id_m${String(index+1).padStart(2,'0')}`),0);
     if(inputMode?.value==='quantity_price')total=number('id_quantity')*number('id_unit_price');
     if(inputMode?.value==='periodic')total=number('id_periodic_amount')*number('id_periods_count');
+    if(inputMode?.value==='days_workers')total=number('id_days_count')*number('id_workers_count')*number('id_rate_amount');
+    if(inputMode?.value==='hours_workers')total=number('id_hours_count')*number('id_workers_count')*number('id_rate_amount');
+    if(inputMode?.value==='percentage')total=number('id_base_amount')*number('id_percentage_rate')/100;
     annualPreview.textContent=new Intl.NumberFormat('ar-YE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(total);
     if(annual && inputMode?.value!=='annual')annual.value=total.toFixed(2);
   }
@@ -62,6 +65,10 @@
     show('annual_amount',hasInput);
     show('quantity',mode==='quantity_price'); show('unit_price',mode==='quantity_price');
     show('periodic_amount',mode==='periodic'); show('periods_count',mode==='periodic');
+    show('days_count',mode==='days_workers'); show('hours_count',mode==='hours_workers');
+    show('workers_count',mode==='days_workers'||mode==='hours_workers');
+    show('rate_amount',mode==='days_workers'||mode==='hours_workers');
+    show('base_amount',mode==='percentage'); show('percentage_rate',mode==='percentage');
     const method=distribution?.value;
     show('single_month',hasInput&&method==='single_month');
     show('selected_months',hasInput&&method==='selected_months');

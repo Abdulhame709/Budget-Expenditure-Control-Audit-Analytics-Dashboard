@@ -160,6 +160,37 @@ class BudgetPlanCalculationTests(BudgetPlanFixture):
         self.assertEqual(values[2], Decimal("0"))
         self.assertEqual(sum(values.values()), Decimal("1000.00"))
 
+    def test_days_workers_calculation(self):
+        line = self.make_line(
+            input_mode=BudgetPlanLine.INPUT_DAYS_WORKERS,
+            days_count=Decimal("6"), workers_count=5,
+            rate_amount=Decimal("2500"), annual_amount=0,
+        )
+        values = services.sync_plan_line_amounts(line)
+        line.refresh_from_db()
+        self.assertEqual(line.annual_amount, Decimal("75000.00"))
+        self.assertEqual(sum(values.values()), Decimal("75000.00"))
+
+    def test_hours_workers_calculation(self):
+        line = self.make_line(
+            input_mode=BudgetPlanLine.INPUT_HOURS_WORKERS,
+            hours_count=Decimal("7.5"), workers_count=4,
+            rate_amount=Decimal("1200"), annual_amount=0,
+        )
+        services.sync_plan_line_amounts(line)
+        line.refresh_from_db()
+        self.assertEqual(line.annual_amount, Decimal("36000.00"))
+
+    def test_percentage_calculation(self):
+        line = self.make_line(
+            input_mode=BudgetPlanLine.INPUT_PERCENTAGE,
+            base_amount=Decimal("125000"), percentage_rate=Decimal("7.5"),
+            annual_amount=0,
+        )
+        services.sync_plan_line_amounts(line)
+        line.refresh_from_db()
+        self.assertEqual(line.annual_amount, Decimal("9375.00"))
+
     def test_monthly_input_becomes_annual_total(self):
         line = self.make_line(
             input_mode=BudgetPlanLine.INPUT_MONTHLY,
@@ -413,4 +444,36 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
         self.assertEqual(
             sum(line.period_amounts.values_list("amount", flat=True)),
             Decimal("1200.00"),
+        )
+
+    def test_admin_creates_percentage_line_from_editor(self):
+        data = {
+            "position": "1",
+            "row_type": BudgetPlanLine.TYPE_DETAIL,
+            "display_name": "تأمينات بنسبة من الرواتب",
+            "main_account": str(self.main_account.pk),
+            "analytical_account": str(self.analytical_account.pk),
+            "department": str(self.finance.pk),
+            "unit_of_measure": "نسبة",
+            "input_mode": BudgetPlanLine.INPUT_PERCENTAGE,
+            "distribution_method": BudgetPlanLine.DIST_EQUAL,
+            "annual_amount": "0",
+            "quantity": "0",
+            "unit_price": "0",
+            "periodic_amount": "0",
+            "periods_count": "0",
+            "base_amount": "200000",
+            "percentage_rate": "7.5",
+            "estimation_basis": "7.5% من إجمالي الرواتب",
+            "is_included": "on",
+        }
+        response = self.client_for(self.admin).post(
+            reverse("budget:plan_line_create", args=[self.section.pk]), data,
+        )
+        self.assertRedirects(response, reverse("budget:plan_detail", args=[self.plan.pk]))
+        line = BudgetPlanLine.objects.get(display_name="تأمينات بنسبة من الرواتب")
+        self.assertEqual(line.annual_amount, Decimal("15000.00"))
+        self.assertEqual(
+            sum(line.period_amounts.values_list("amount", flat=True)),
+            Decimal("15000.00"),
         )

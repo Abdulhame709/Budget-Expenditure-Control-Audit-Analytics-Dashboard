@@ -137,6 +137,24 @@ def calculate_plan_line_annual(
         return _money(Decimal(line.quantity or 0) * Decimal(line.unit_price or 0))
     if line.input_mode == BudgetPlanLine.INPUT_PERIODIC:
         return _money(Decimal(line.periodic_amount or 0) * Decimal(line.periods_count or 0))
+    if line.input_mode == BudgetPlanLine.INPUT_DAYS_WORKERS:
+        return _money(
+            Decimal(line.days_count or 0)
+            * Decimal(line.workers_count or 0)
+            * Decimal(line.rate_amount or 0)
+        )
+    if line.input_mode == BudgetPlanLine.INPUT_HOURS_WORKERS:
+        return _money(
+            Decimal(line.hours_count or 0)
+            * Decimal(line.workers_count or 0)
+            * Decimal(line.rate_amount or 0)
+        )
+    if line.input_mode == BudgetPlanLine.INPUT_PERCENTAGE:
+        return _money(
+            Decimal(line.base_amount or 0)
+            * Decimal(line.percentage_rate or 0)
+            / Decimal("100")
+        )
     raise ValidationError({"input_mode": "طريقة الإدخال غير مدعومة."})
 
 

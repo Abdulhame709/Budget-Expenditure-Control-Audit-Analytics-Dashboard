@@ -120,6 +120,8 @@ class BudgetPlanLineForm(forms.ModelForm):
             "analytical_account", "department", "employee", "unit_of_measure",
             "input_mode", "distribution_method", "annual_amount", "quantity",
             "unit_price", "periodic_amount", "periods_count", "single_month",
+            "days_count", "hours_count", "workers_count", "rate_amount",
+            "base_amount", "percentage_rate",
             "selected_months", "aggregate_sections", "estimation_basis", "is_included",
         ]
         widgets = {
@@ -139,6 +141,12 @@ class BudgetPlanLineForm(forms.ModelForm):
             "unit_price": AMOUNT_INPUT,
             "periodic_amount": AMOUNT_INPUT,
             "periods_count": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "days_count": forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": "0.01"}),
+            "hours_count": forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": "0.01"}),
+            "workers_count": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "rate_amount": AMOUNT_INPUT,
+            "base_amount": AMOUNT_INPUT,
+            "percentage_rate": forms.NumberInput(attrs={"class": "form-control", "min": 0, "max": 100, "step": "0.0001"}),
             "single_month": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 12}),
             "aggregate_sections": forms.SelectMultiple(attrs={"class": "form-select", "size": 5}),
             "estimation_basis": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
@@ -155,6 +163,11 @@ class BudgetPlanLineForm(forms.ModelForm):
             help_text="اختياري: اختر بندًا محفوظًا من القسم نفسه لتجميع البنود في شكل شجرة.",
             widget=forms.Select(attrs={"class": "form-select"}),
         )
+        for field_name in (
+            "days_count", "hours_count", "workers_count", "rate_amount",
+            "base_amount", "percentage_rate",
+        ):
+            self.fields[field_name].required = False
         main_accounts = Account.objects.main_accounts().filter(
             account_type="expense",
         ).order_by("code")
@@ -256,6 +269,12 @@ class BudgetPlanLineForm(forms.ModelForm):
             cleaned["unit_price"] = 0
             cleaned["periodic_amount"] = 0
             cleaned["periods_count"] = 0
+            cleaned["days_count"] = 0
+            cleaned["hours_count"] = 0
+            cleaned["workers_count"] = 0
+            cleaned["rate_amount"] = 0
+            cleaned["base_amount"] = 0
+            cleaned["percentage_rate"] = 0
             cleaned["single_month"] = None
             cleaned["selected_months"] = []
             input_mode = BudgetPlanLine.INPUT_NONE
@@ -272,6 +291,25 @@ class BudgetPlanLineForm(forms.ModelForm):
         elif input_mode == BudgetPlanLine.INPUT_NONE:
             cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
             cleaned["annual_amount"] = 0
+        if input_mode != BudgetPlanLine.INPUT_QUANTITY_PRICE:
+            cleaned["quantity"] = 0
+            cleaned["unit_price"] = 0
+        if input_mode != BudgetPlanLine.INPUT_PERIODIC:
+            cleaned["periodic_amount"] = 0
+            cleaned["periods_count"] = 0
+        if input_mode != BudgetPlanLine.INPUT_DAYS_WORKERS:
+            cleaned["days_count"] = 0
+        if input_mode != BudgetPlanLine.INPUT_HOURS_WORKERS:
+            cleaned["hours_count"] = 0
+        if input_mode not in {
+            BudgetPlanLine.INPUT_DAYS_WORKERS,
+            BudgetPlanLine.INPUT_HOURS_WORKERS,
+        }:
+            cleaned["workers_count"] = 0
+            cleaned["rate_amount"] = 0
+        if input_mode != BudgetPlanLine.INPUT_PERCENTAGE:
+            cleaned["base_amount"] = 0
+            cleaned["percentage_rate"] = 0
         distribution_method = cleaned.get("distribution_method")
         if distribution_method != BudgetPlanLine.DIST_SINGLE_MONTH:
             cleaned["single_month"] = None

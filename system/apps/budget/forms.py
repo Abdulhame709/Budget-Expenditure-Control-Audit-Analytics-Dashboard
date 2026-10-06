@@ -3,12 +3,22 @@ from __future__ import annotations
 
 from django import forms
 
-from apps.reference.models import Department, ExpenseCategory, Account, FiscalYear
+from apps.reference.models import (
+    Account,
+    Currency,
+    Department,
+    Employee,
+    ExpenseCategory,
+    FiscalYear,
+)
 
 from .models import (
     MONTH_FIELDS,
     Budget,
     BudgetLine,
+    BudgetPlan,
+    BudgetPlanLine,
+    BudgetPlanSection,
     BudgetTemplate,
     BudgetTemplateRow,
     BudgetTemplateSheet,
@@ -19,6 +29,139 @@ AMOUNT_INPUT = forms.NumberInput(
     attrs={"class": "form-control form-control-sm", "step": "0.01", "min": "0",
            "dir": "ltr", "style": "min-width:90px"},
 )
+
+MONTH_CHOICES = [(str(month), f"شهر {month}") for month in range(1, 13)]
+
+
+class BudgetPlanForm(forms.ModelForm):
+    class Meta:
+        model = BudgetPlan
+        fields = ["name", "fiscal_year", "currency", "description", "status", "version"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "fiscal_year": forms.Select(attrs={"class": "form-select"}),
+            "currency": forms.Select(attrs={"class": "form-select"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "status": forms.Select(attrs={"class": "form-select"}),
+            "version": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fiscal_year"].queryset = FiscalYear.objects.filter(is_active=True)
+        self.fields["currency"].queryset = Currency.objects.filter(is_active=True)
+
+
+class BudgetPlanSectionForm(forms.ModelForm):
+    class Meta:
+        model = BudgetPlanSection
+        fields = ["name", "description", "position", "default_main_account"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control"}),
+            "description": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+            "position": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "default_main_account": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["default_main_account"].queryset = Account.objects.filter(
+            is_active=True, account_type="expense",
+        ).order_by("code")
+
+
+class BudgetPlanLineForm(forms.ModelForm):
+    selected_months = forms.MultipleChoiceField(
+        label="الأشهر المختارة", choices=MONTH_CHOICES, required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
+    m01 = forms.DecimalField(label="يناير", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m02 = forms.DecimalField(label="فبراير", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m03 = forms.DecimalField(label="مارس", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m04 = forms.DecimalField(label="أبريل", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m05 = forms.DecimalField(label="مايو", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m06 = forms.DecimalField(label="يونيو", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m07 = forms.DecimalField(label="يوليو", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m08 = forms.DecimalField(label="أغسطس", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m09 = forms.DecimalField(label="سبتمبر", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m10 = forms.DecimalField(label="أكتوبر", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m11 = forms.DecimalField(label="نوفمبر", required=False, min_value=0, widget=AMOUNT_INPUT)
+    m12 = forms.DecimalField(label="ديسمبر", required=False, min_value=0, widget=AMOUNT_INPUT)
+
+    class Meta:
+        model = BudgetPlanLine
+        fields = [
+            "parent", "position", "row_type", "display_name", "main_account",
+            "analytical_account", "department", "employee", "unit_of_measure",
+            "input_mode", "distribution_method", "annual_amount", "quantity",
+            "unit_price", "periodic_amount", "periods_count", "single_month",
+            "selected_months", "aggregate_sections", "estimation_basis", "is_included",
+        ]
+        widgets = {
+            "parent": forms.Select(attrs={"class": "form-select"}),
+            "position": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+            "row_type": forms.Select(attrs={"class": "form-select"}),
+            "display_name": forms.TextInput(attrs={"class": "form-control"}),
+            "main_account": forms.Select(attrs={"class": "form-select"}),
+            "analytical_account": forms.Select(attrs={"class": "form-select"}),
+            "department": forms.Select(attrs={"class": "form-select"}),
+            "employee": forms.Select(attrs={"class": "form-select"}),
+            "unit_of_measure": forms.TextInput(attrs={"class": "form-control"}),
+            "input_mode": forms.Select(attrs={"class": "form-select"}),
+            "distribution_method": forms.Select(attrs={"class": "form-select"}),
+            "annual_amount": AMOUNT_INPUT,
+            "quantity": forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": "0.0001"}),
+            "unit_price": AMOUNT_INPUT,
+            "periodic_amount": AMOUNT_INPUT,
+            "periods_count": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "single_month": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 12}),
+            "aggregate_sections": forms.SelectMultiple(attrs={"class": "form-select", "size": 5}),
+            "estimation_basis": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "is_included": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def __init__(self, *args, section=None, **kwargs):
+        self.section = section or getattr(kwargs.get("instance"), "section", None)
+        super().__init__(*args, **kwargs)
+        expense_accounts = Account.objects.filter(
+            is_active=True, account_type="expense",
+        ).order_by("code")
+        self.fields["main_account"].queryset = expense_accounts
+        self.fields["analytical_account"].queryset = expense_accounts
+        self.fields["department"].queryset = Department.objects.filter(is_active=True).order_by("code")
+        self.fields["employee"].queryset = Employee.objects.filter(is_active=True).order_by("code")
+        if self.section:
+            self.fields["parent"].queryset = self.section.lines.exclude(
+                pk=getattr(self.instance, "pk", None)
+            )
+            self.fields["aggregate_sections"].queryset = self.section.plan.sections.all()
+        if self.instance.pk:
+            self.initial["selected_months"] = [str(m) for m in self.instance.selected_months]
+            month_map = {row.month: row.amount for row in self.instance.period_amounts.all()}
+            for month in range(1, 13):
+                self.initial[f"m{month:02d}"] = month_map.get(month, 0)
+
+    def clean_selected_months(self):
+        return [int(month) for month in self.cleaned_data.get("selected_months", [])]
+
+    def monthly_values(self):
+        return {
+            month: self.cleaned_data.get(f"m{month:02d}") or 0
+            for month in range(1, 13)
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        aggregate_sections = cleaned.get("aggregate_sections")
+        if aggregate_sections and self.section:
+            if aggregate_sections.exclude(plan=self.section.plan).exists():
+                self.add_error("aggregate_sections", "يجب اختيار أقسام من النموذج نفسه.")
+        if cleaned.get("input_mode") == BudgetPlanLine.INPUT_MONTHLY:
+            cleaned["distribution_method"] = BudgetPlanLine.DIST_MANUAL
+            cleaned["annual_amount"] = sum(self.monthly_values().values())
+            self.instance.distribution_method = BudgetPlanLine.DIST_MANUAL
+            self.instance.annual_amount = cleaned["annual_amount"]
+        return cleaned
 
 
 class BudgetForm(forms.ModelForm):

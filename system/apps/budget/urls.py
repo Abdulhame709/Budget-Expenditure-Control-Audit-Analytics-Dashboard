@@ -6,6 +6,22 @@ from . import views
 app_name = "budget"
 
 urlpatterns = [
+    path("plans/", views.plan_list, name="plan_list"),
+    path("plans/new/", views.plan_create, name="plan_create"),
+    path("plans/<int:pk>/", views.plan_detail, name="plan_detail"),
+    path("plans/<int:pk>/edit/", views.plan_edit, name="plan_edit"),
+    path("plans/<int:pk>/delete/", views.plan_delete, name="plan_delete"),
+    path("plans/<int:pk>/monthly/", views.plan_monthly_output, name="plan_monthly_output"),
+    path("plans/<int:pk>/summary/", views.plan_summary_output, name="plan_summary_output"),
+    path("plans/<int:plan_pk>/sections/new/", views.plan_section_create, name="plan_section_create"),
+    path("plan-sections/<int:pk>/edit/", views.plan_section_edit, name="plan_section_edit"),
+    path("plan-sections/<int:pk>/delete/", views.plan_section_delete, name="plan_section_delete"),
+    path("plan-sections/<int:section_pk>/lines/new/", views.plan_line_create, name="plan_line_create"),
+    path("plan-lines/<int:pk>/edit/", views.plan_line_edit, name="plan_line_edit"),
+    path("plan-lines/<int:pk>/delete/", views.plan_line_delete, name="plan_line_delete"),
+    path("plan-lines/<int:pk>/copy/", views.plan_line_copy, name="plan_line_copy"),
+    path("plans/api/analytical-accounts/", views.plan_analytical_accounts, name="plan_analytical_accounts"),
+    path("plans/api/employees/", views.plan_department_employees, name="plan_department_employees"),
     path("templates/", views.template_list, name="template_list"),
     path("templates/import/", views.template_import, name="template_import"),
     path("templates/<int:pk>/", views.template_detail, name="template_detail"),

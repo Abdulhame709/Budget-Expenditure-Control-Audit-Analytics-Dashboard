@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}نماذج الموازنة التشغيلية{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h1 class="h3 mb-1">نماذج الموازنة التشغيلية</h1><p class="text-muted mb-0">مصدر الإدخال التفصيلي الذي يولّد الموازنة الشهرية والإجماليات.</p></div>
+  {% if can_edit %}<a class="btn btn-primary" href="{% url 'budget:plan_create' %}">نموذج جديد</a>{% endif %}
+</div>
+<div class="card border-0 shadow-sm"><div class="table-responsive"><table class="table table-hover align-middle mb-0">
+  <thead class="table-light"><tr><th>الاسم</th><th>السنة</th><th>العملة</th><th>الإصدار</th><th>الحالة</th><th>الأقسام</th><th></th></tr></thead>
+  <tbody>{% for plan in plans %}<tr>
+    <td>{{ plan.name }}</td><td>{{ plan.fiscal_year }}</td><td>{{ plan.currency }}</td><td>{{ plan.version }}</td>
+    <td><span class="badge text-bg-{% if plan.status == 'approved' %}success{% elif plan.status == 'review' %}warning{% else %}secondary{% endif %}">{{ plan.get_status_display }}</span></td>
+    <td>{{ plan.section_count }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'budget:plan_detail' plan.pk %}">فتح</a></td>
+  </tr>{% empty %}<tr><td colspan="7" class="text-center text-muted py-4">لم تُنشأ نماذج تشغيلية بعد.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

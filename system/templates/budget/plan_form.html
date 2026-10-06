@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{% if is_create %}نموذج موازنة جديد{% else %}تعديل نموذج الموازنة{% endif %}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{% if is_create %}إنشاء نموذج موازنة تشغيلي{% else %}تعديل {{ plan.name }}{% endif %}</h1>
+<form method="post" class="card border-0 shadow-sm"><div class="card-body">{% csrf_token %}
+  {% for field in form %}<div class="mb-3"><label class="form-label">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}
+  {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+  <button class="btn btn-primary" type="submit">حفظ</button> <a class="btn btn-outline-secondary" href="{% url 'budget:plan_list' %}">إلغاء</a>
+</div></form>
+{% endblock %}

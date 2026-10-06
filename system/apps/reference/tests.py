@@ -24,6 +24,7 @@ from apps.governance.models import AuditLog
 from apps.reference.models import (
     Account,
     Department,
+    Employee,
     ExpenseCategory,
     FiscalYear,
     MonthlyPeriod,
@@ -207,6 +208,39 @@ class SupplierValidationTests(TestCase):
         Supplier.objects.create(code="S1", name="أ")
         Supplier.objects.create(code="S2", name="ب")  # NULL duplicates are fine
         self.assertEqual(Supplier.objects.count(), 2)
+
+
+class EmployeeValidationTests(TestCase):
+    def setUp(self):
+        self.department = Department.objects.create(code="FIN", name="المالية")
+
+    def test_rejects_end_date_before_start_date(self):
+        employee = Employee(
+            code="EMP-001", full_name="موظف تجريبي",
+            department=self.department,
+            start_date=date(2026, 2, 1), end_date=date(2026, 1, 31),
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            employee.full_clean()
+        self.assertIn("end_date", ctx.exception.error_dict)
+
+    def test_employee_code_is_unique(self):
+        Employee.objects.create(
+            code="EMP-001", full_name="الموظف الأول", department=self.department,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Employee.objects.create(
+                    code="EMP-001", full_name="الموظف الثاني",
+                    department=self.department,
+                )
+
+    def test_department_cannot_be_deleted_while_used(self):
+        Employee.objects.create(
+            code="EMP-001", full_name="موظف تجريبي", department=self.department,
+        )
+        with self.assertRaises(ProtectedError):
+            self.department.delete()
 
 
 # ================================================================ closed-period rule
@@ -444,6 +478,62 @@ class SearchFilterPaginationTests(TestCase):
         response = self.c.get(reverse("reference:expense_category_create"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "تصنيف مصروفات")
+
+    def test_employee_search_and_combined_filters(self):
+        finance = Department.objects.create(code="FIN", name="المالية")
+        operations = Department.objects.create(code="OPS", name="التشغيل")
+        Employee.objects.create(
+            code="EMP-001", full_name="أحمد المالي", department=finance,
+            job_title="محاسب", contract_type="official", is_active=True,
+        )
+        Employee.objects.create(
+            code="EMP-002", full_name="سالم التشغيلي", department=operations,
+            job_title="مشرف", contract_type="temporary", is_active=False,
+        )
+
+        response = self.c.get(reverse("reference:employee_list"), {"q": "محاسب"})
+        self.assertEqual(response.context["total"], 1)
+        self.assertEqual(response.context["rows"][0]["obj"].code, "EMP-001")
+
+        response = self.c.get(reverse("reference:employee_list"), {
+            "department": str(operations.pk),
+            "contract": "temporary",
+            "status": "inactive",
+        })
+        self.assertEqual(response.context["total"], 1)
+        self.assertEqual(response.context["rows"][0]["obj"].code, "EMP-002")
+
+
+class EmployeeHttpTests(TestCase):
+    def setUp(self):
+        self.admin = make_user("adm_employee", "admin")
+        self.auditor = make_user("aud_employee", "auditor")
+        self.department = Department.objects.create(code="HR", name="الموارد البشرية")
+
+    def _client(self, user):
+        client = Client()
+        client.force_login(user)
+        return client
+
+    def test_auditor_can_view_but_cannot_create_employee(self):
+        client = self._client(self.auditor)
+        self.assertEqual(client.get(reverse("reference:employee_list")).status_code, 200)
+        self.assertEqual(client.get(reverse("reference:employee_create")).status_code, 403)
+
+    def test_admin_can_create_employee_and_action_is_audited(self):
+        response = self._client(self.admin).post(reverse("reference:employee_create"), {
+            "code": "EMP-100",
+            "full_name": "موظف الموازنة",
+            "department": str(self.department.pk),
+            "contract_type": "official",
+            "start_date": "2026-01-01",
+            "is_active": "on",
+        })
+        employee = Employee.objects.get(code="EMP-100")
+        self.assertRedirects(response, reverse("reference:employee_detail", args=[employee.pk]))
+        self.assertTrue(AuditLog.objects.filter(
+            action="entity_created", entity_type="employee", entity_id=str(employee.pk),
+        ).exists())
 
 
 # ================================================================ catalog integration

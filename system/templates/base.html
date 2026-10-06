@@ -49,6 +49,7 @@
               <li><a class="dropdown-item" href="{% url 'reference:fiscal_year_list' %}">{% if LANGUAGE_CODE == 'en' %}Fiscal Years{% else %}السنوات المالية{% endif %}</a></li>
               <li><a class="dropdown-item" href="{% url 'reference:period_list' %}">{% if LANGUAGE_CODE == 'en' %}Monthly Periods{% else %}الفترات الشهرية{% endif %}</a></li>
               <li><a class="dropdown-item" href="{% url 'reference:department_list' %}">{% if LANGUAGE_CODE == 'en' %}Departments{% else %}الإدارات{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'reference:employee_list' %}">{% if LANGUAGE_CODE == 'en' %}Employees{% else %}الموظفون{% endif %}</a></li>
               <li><a class="dropdown-item" href="{% url 'reference:account_list' %}">{% if LANGUAGE_CODE == 'en' %}Chart of Accounts{% else %}دليل الحسابات{% endif %}</a></li>
               <li><a class="dropdown-item" href="{% url 'reference:expense_category_list' %}">{% if LANGUAGE_CODE == 'en' %}Expense Categories{% else %}تصنيفات المصروفات{% endif %}</a></li>
               <li><a class="dropdown-item" href="{% url 'reference:supplier_list' %}">{% if LANGUAGE_CODE == 'en' %}Suppliers{% else %}الموردون{% endif %}</a></li>
@@ -56,7 +57,8 @@
               {% if can_budget %}
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="{% url 'budget:budget_list' %}">{% if LANGUAGE_CODE == 'en' %}Budget{% else %}الموازنة{% endif %}</a></li>
-              <li><a class="dropdown-item" href="{% url 'budget:template_list' %}">{% if LANGUAGE_CODE == 'en' %}Budget Templates{% else %}نماذج الموازنة التقديرية{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'budget:plan_list' %}">{% if LANGUAGE_CODE == 'en' %}Operational Budget Models{% else %}نماذج الموازنة التشغيلية{% endif %}</a></li>
+              <li><a class="dropdown-item" href="{% url 'budget:template_list' %}">{% if LANGUAGE_CODE == 'en' %}Imported Excel Templates{% else %}قوالب Excel المستوردة{% endif %}</a></li>
               {% endif %}
               {% if can_exp %}
               <li><hr class="dropdown-divider"></li>

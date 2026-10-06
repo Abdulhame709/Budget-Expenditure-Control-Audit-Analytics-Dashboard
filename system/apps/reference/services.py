@@ -22,6 +22,10 @@ SNAPSHOT_FIELDS = {
     "fiscalyear": ["code", "name", "year", "start_date", "end_date", "is_active"],
     "monthlyperiod": ["fiscal_year", "month", "start_date", "end_date", "status", "is_active"],
     "department": ["code", "name", "parent", "is_active"],
+    "employee": [
+        "code", "full_name", "department", "cost_center", "job_title",
+        "contract_type", "start_date", "end_date", "is_active",
+    ],
     "expensecategory": ["code", "name", "is_active"],
     "account": ["code", "name", "account_type", "parent", "expense_category", "is_active"],
     "supplier": ["code", "name", "contact_person", "phone", "email", "tax_number", "is_active"],

@@ -28,6 +28,7 @@ from .models import (
     Account,
     Currency,
     Department,
+    Employee,
     ExpenseCategory,
     FiscalYear,
     MonthlyPeriod,
@@ -122,6 +123,34 @@ REFERENCE_MODULES: dict[str, dict] = {
             ("status", "الحالة", [("", "الكل"), ("active", "نشط"), ("inactive", "معطّل")]),
         ],
         "paginate_by": 15,
+    },
+    "employee": {
+        "model": Employee,
+        "form": forms.EmployeeForm,
+        "path": "employees",
+        "title": "الموظفون",
+        "title_one": "موظف",
+        "columns": [
+            ("code", "رقم الموظف"), ("full_name", "الاسم"),
+            ("department", "الإدارة"), ("job_title", "المسمى الوظيفي"),
+            ("contract_type", "نوع التعاقد"), ("is_active", "الحالة"),
+        ],
+        "detail_fields": [
+            "code", "full_name", "department", "cost_center", "job_title",
+            "contract_type", "start_date", "end_date", "is_active", "notes",
+        ],
+        "search": ["code", "full_name", "job_title", "cost_center", "department__name"],
+        "filters": {
+            "status": "is_active", "contract": "contract_type",
+            "department": "department",
+        },
+        "fk_filters": ["department"],
+        "filter_specs": [
+            ("status", "الحالة", [("", "الكل"), ("active", "نشط"), ("inactive", "معطّل")]),
+            ("contract", "نوع التعاقد", [("", "الكل"), *Employee.CONTRACT_TYPE_CHOICES]),
+        ],
+        "fk_filter_specs": [("department", "الإدارة", Department)],
+        "paginate_by": 20,
     },
     "account": {
         "model": Account,
@@ -339,13 +368,20 @@ def module_list(request, slug):
     except EmptyPage:
         page = paginator.get_page(paginator.num_pages)
 
+    filter_specs = list(cfg["filter_specs"])
+    for param, label, model in cfg.get("fk_filter_specs", []):
+        options = [("", "الكل")]
+        options.extend((str(obj.pk), str(obj)) for obj in model.objects.order_by("code"))
+        filter_specs.append((param, label, options))
+
     # active filter values for re-rendering the selects
     active_filters = {
         param: (request.GET.get(param) or "")
-        for param, _, _ in cfg["filter_specs"]
+        for param, _, _ in filter_specs
     }
     context = {
         **cfg,
+        "filter_specs": filter_specs,
         "q": q,
         "rows": _cell_rows(page, cfg),
         "page_obj": page,

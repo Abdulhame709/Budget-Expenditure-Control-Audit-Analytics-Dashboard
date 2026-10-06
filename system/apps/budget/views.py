@@ -12,14 +12,16 @@ Enforcement:
 from __future__ import annotations
 
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Count, Q
+from django.db.models.deletion import ProtectedError
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from apps.accounts.permissions import has_perm, require_permission
 from apps.governance.models import AuditLog
@@ -30,6 +32,9 @@ from .models import (
     MONTH_FIELDS,
     Budget,
     BudgetLine,
+    BudgetPlan,
+    BudgetPlanLine,
+    BudgetPlanSection,
     BudgetTemplate,
     BudgetTemplateRow,
     BudgetTemplateSheet,
@@ -708,3 +713,277 @@ def template_sheet(request, pk):
         "sheet_form": sheet_form,
         "can_edit": can_edit,
     })
+
+
+def _ensure_plan_editable(plan: BudgetPlan):
+    if plan.is_locked:
+        raise PermissionDenied("النموذج المعتمد أو المؤرشف مقفل؛ أنشئ إصدارًا جديدًا للتعديل.")
+
+
+def plan_list(request):
+    plans = BudgetPlan.objects.select_related("fiscal_year", "currency").annotate(
+        section_count=Count("sections"),
+    )
+    return render(request, "budget/plan_list.html", {
+        "plans": plans,
+        "can_edit": has_perm(request.user, "budget.edit"),
+    })
+
+
+@require_permission("budget.edit")
+def plan_create(request):
+    form = forms.BudgetPlanForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        plan = form.save(commit=False)
+        plan.created_by = request.user
+        plan.updated_by = request.user
+        plan.save()
+        log_action(
+            action="budget_plan_created", entity_type="budgetplan",
+            entity_id=plan.pk, diff=snapshot(plan), request=request,
+        )
+        messages.success(request, "تم إنشاء نموذج التخطيط التشغيلي.")
+        return redirect("budget:plan_detail", pk=plan.pk)
+    return render(request, "budget/plan_form.html", {"form": form, "is_create": True})
+
+
+def plan_detail(request, pk):
+    plan = get_object_or_404(
+        BudgetPlan.objects.select_related("fiscal_year", "currency"), pk=pk,
+    )
+    return render(request, "budget/plan_detail.html", {
+        "plan": plan,
+        "sections": services.detailed_plan_output(plan),
+        "can_edit": has_perm(request.user, "budget.edit") and not plan.is_locked,
+    })
+
+
+@require_permission("budget.edit")
+def plan_edit(request, pk):
+    plan = get_object_or_404(BudgetPlan, pk=pk)
+    _ensure_plan_editable(plan)
+    before = snapshot(plan)
+    form = forms.BudgetPlanForm(request.POST or None, instance=plan)
+    if request.method == "POST" and form.is_valid():
+        plan = form.save(commit=False)
+        plan.updated_by = request.user
+        plan.save()
+        log_action(
+            action="budget_plan_updated", entity_type="budgetplan",
+            entity_id=plan.pk, diff=changes_between(plan, before), request=request,
+        )
+        messages.success(request, "تم تحديث نموذج التخطيط.")
+        return redirect("budget:plan_detail", pk=plan.pk)
+    return render(request, "budget/plan_form.html", {"form": form, "plan": plan})
+
+
+@require_permission("budget.edit")
+@require_POST
+def plan_delete(request, pk):
+    plan = get_object_or_404(BudgetPlan, pk=pk)
+    _ensure_plan_editable(plan)
+    plan_id, label = plan.pk, str(plan)
+    plan.delete()
+    log_action(
+        action="budget_plan_deleted", entity_type="budgetplan",
+        entity_id=plan_id, diff={"label": label}, request=request,
+    )
+    messages.success(request, "تم حذف نموذج التخطيط.")
+    return redirect("budget:plan_list")
+
+
+@require_permission("budget.edit")
+def plan_section_create(request, plan_pk):
+    plan = get_object_or_404(BudgetPlan, pk=plan_pk)
+    _ensure_plan_editable(plan)
+    form = forms.BudgetPlanSectionForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        section = form.save(commit=False)
+        section.plan = plan
+        section.created_by = request.user
+        section.updated_by = request.user
+        section.save()
+        log_action(
+            action="budget_plan_section_created", entity_type="budgetplansection",
+            entity_id=section.pk, diff=snapshot(section), request=request,
+        )
+        return redirect("budget:plan_detail", pk=plan.pk)
+    return render(request, "budget/plan_section_form.html", {"form": form, "plan": plan})
+
+
+@require_permission("budget.edit")
+def plan_section_edit(request, pk):
+    section = get_object_or_404(BudgetPlanSection.objects.select_related("plan"), pk=pk)
+    _ensure_plan_editable(section.plan)
+    form = forms.BudgetPlanSectionForm(request.POST or None, instance=section)
+    if request.method == "POST" and form.is_valid():
+        section = form.save(commit=False)
+        section.updated_by = request.user
+        section.save()
+        log_action(
+            action="budget_plan_section_updated", entity_type="budgetplansection",
+            entity_id=section.pk, diff=snapshot(section), request=request,
+        )
+        return redirect("budget:plan_detail", pk=section.plan_id)
+    return render(request, "budget/plan_section_form.html", {"form": form, "plan": section.plan, "section": section})
+
+
+@require_permission("budget.edit")
+@require_POST
+def plan_section_delete(request, pk):
+    section = get_object_or_404(BudgetPlanSection.objects.select_related("plan"), pk=pk)
+    _ensure_plan_editable(section.plan)
+    plan_id = section.plan_id
+    section_id, label = section.pk, str(section)
+    section.delete()
+    log_action(
+        action="budget_plan_section_deleted", entity_type="budgetplansection",
+        entity_id=section_id, diff={"label": label}, request=request,
+    )
+    messages.success(request, "تم حذف القسم وبنوده.")
+    return redirect("budget:plan_detail", pk=plan_id)
+
+
+def _line_form_response(request, section, line=None):
+    form = forms.BudgetPlanLineForm(
+        request.POST or None, instance=line, section=section,
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                saved_line = form.save(commit=False)
+                saved_line.section = section
+                if not saved_line.pk:
+                    saved_line.created_by = request.user
+                saved_line.updated_by = request.user
+                saved_line.save()
+                form.save_m2m()
+                services.sync_plan_line_amounts(saved_line, form.monthly_values())
+        except ValidationError as exc:
+            for field, errors in exc.message_dict.items():
+                target = field if field in form.fields else None
+                for error in errors:
+                    form.add_error(target, error)
+        else:
+            log_action(
+                action="budget_plan_line_updated" if line else "budget_plan_line_created",
+                entity_type="budgetplanline", entity_id=saved_line.pk,
+                diff=snapshot(saved_line), request=request,
+            )
+            messages.success(request, "تم حفظ بند الموازنة وإعادة احتساب توزيعه.")
+            return redirect("budget:plan_detail", pk=section.plan_id)
+    return render(request, "budget/plan_line_form.html", {
+        "form": form, "section": section, "plan": section.plan, "line": line,
+        "month_fields": [form[f"m{month:02d}"] for month in range(1, 13)],
+    })
+
+
+@require_permission("budget.edit")
+def plan_line_create(request, section_pk):
+    section = get_object_or_404(BudgetPlanSection.objects.select_related("plan"), pk=section_pk)
+    _ensure_plan_editable(section.plan)
+    return _line_form_response(request, section)
+
+
+@require_permission("budget.edit")
+def plan_line_edit(request, pk):
+    line = get_object_or_404(BudgetPlanLine.objects.select_related("section__plan"), pk=pk)
+    _ensure_plan_editable(line.plan)
+    return _line_form_response(request, line.section, line)
+
+
+@require_permission("budget.edit")
+@require_POST
+def plan_line_delete(request, pk):
+    line = get_object_or_404(BudgetPlanLine.objects.select_related("section__plan"), pk=pk)
+    _ensure_plan_editable(line.plan)
+    plan_id = line.plan.pk
+    line_id, label = line.pk, str(line)
+    try:
+        line.delete()
+    except ProtectedError:
+        messages.error(request, "لا يمكن حذف البند لوجود بنود فرعية مرتبطة به.")
+        return redirect("budget:plan_detail", pk=plan_id)
+    log_action(
+        action="budget_plan_line_deleted", entity_type="budgetplanline",
+        entity_id=line_id, diff={"label": label}, request=request,
+    )
+    messages.success(request, "تم حذف البند.")
+    return redirect("budget:plan_detail", pk=plan_id)
+
+
+@require_permission("budget.edit")
+@require_POST
+def plan_line_copy(request, pk):
+    source = get_object_or_404(BudgetPlanLine.objects.select_related("section__plan"), pk=pk)
+    _ensure_plan_editable(source.plan)
+    with transaction.atomic():
+        last_position = source.section.lines.aggregate(value=models.Max("position"))["value"] or 0
+        monthly = {row.month: row.amount for row in source.period_amounts.all()}
+        source.pk = None
+        source.position = last_position + 1
+        source.display_name = f"{source.display_name} - نسخة"
+        source.created_by = request.user
+        source.updated_by = request.user
+        source.save()
+        services.sync_plan_line_amounts(source, monthly)
+        log_action(
+            action="budget_plan_line_copied", entity_type="budgetplanline",
+            entity_id=source.pk, diff={"source_id": pk}, request=request,
+        )
+    messages.success(request, "تم نسخ البند.")
+    return redirect("budget:plan_detail", pk=source.plan.pk)
+
+
+def plan_monthly_output(request, pk):
+    plan = get_object_or_404(BudgetPlan, pk=pk)
+    return render(request, "budget/plan_output.html", {
+        "plan": plan, "rows": services.monthly_plan_output(plan),
+        "title": "الموازنة الشهرية التفصيلية", "show_analytical": True,
+    })
+
+
+def plan_summary_output(request, pk):
+    plan = get_object_or_404(BudgetPlan, pk=pk)
+    return render(request, "budget/plan_output.html", {
+        "plan": plan, "rows": services.summary_plan_output(plan),
+        "title": "إجماليات الموازنة الشهرية", "show_analytical": False,
+    })
+
+
+@require_GET
+def plan_analytical_accounts(request):
+    from apps.reference.models import Account
+    main_id = request.GET.get("main_account")
+    rows = Account.objects.none()
+    if main_id and main_id.isdigit():
+        candidates = list(Account.objects.filter(
+            account_type="expense", is_active=True,
+        ).select_related("parent").order_by("code"))
+        descendants = []
+        target_id = int(main_id)
+        for account in candidates:
+            node = account.parent
+            while node is not None:
+                if node.pk == target_id:
+                    descendants.append(account.pk)
+                    break
+                node = node.parent
+        rows = Account.objects.filter(pk__in=descendants).order_by("code")
+    return JsonResponse({"results": [
+        {"id": row.pk, "text": str(row)} for row in rows
+    ]})
+
+
+@require_GET
+def plan_department_employees(request):
+    from apps.reference.models import Employee
+    department_id = request.GET.get("department")
+    rows = Employee.objects.none()
+    if department_id and department_id.isdigit():
+        rows = Employee.objects.filter(
+            department_id=int(department_id), is_active=True,
+        ).order_by("code")
+    return JsonResponse({"results": [
+        {"id": row.pk, "text": str(row)} for row in rows
+    ]})

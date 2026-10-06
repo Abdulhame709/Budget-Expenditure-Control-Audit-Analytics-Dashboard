@@ -307,6 +307,65 @@ class Department(TimeStampedModel):
             node = node.parent
 
 
+# ---------------------------------------------------------------- employee
+class Employee(TimeStampedModel):
+    """سجل الموظفين المستخدم في ربط بنود الموازنة بالإدارة والموظف."""
+
+    CONTRACT_OFFICIAL = "official"
+    CONTRACT_CASUAL = "casual"
+    CONTRACT_TEMPORARY = "temporary"
+    CONTRACT_CONTRACTOR = "contractor"
+    CONTRACT_TYPE_CHOICES = [
+        (CONTRACT_OFFICIAL, "رسمي"),
+        (CONTRACT_CASUAL, "يومي/عرضي"),
+        (CONTRACT_TEMPORARY, "مؤقت"),
+        (CONTRACT_CONTRACTOR, "متعاقد"),
+    ]
+
+    code = models.SlugField("رقم الموظف", max_length=30, unique=True)
+    full_name = models.CharField("اسم الموظف", max_length=200, db_index=True)
+    department = models.ForeignKey(
+        Department, on_delete=models.PROTECT,
+        related_name="employees", verbose_name="الإدارة",
+    )
+    cost_center = models.CharField("مركز التكلفة", max_length=100, blank=True)
+    job_title = models.CharField("المسمى الوظيفي", max_length=150, blank=True)
+    contract_type = models.CharField(
+        "نوع التعاقد", max_length=20,
+        choices=CONTRACT_TYPE_CHOICES, default=CONTRACT_OFFICIAL,
+    )
+    start_date = models.DateField("تاريخ بداية العمل", null=True, blank=True)
+    end_date = models.DateField("تاريخ نهاية العمل", null=True, blank=True)
+    is_active = models.BooleanField("نشط", default=True)
+    notes = models.TextField("ملاحظات", blank=True)
+
+    class Meta:
+        db_table = "employees"
+        verbose_name = "موظف"
+        verbose_name_plural = "الموظفون"
+        ordering = ["code"]
+        indexes = [
+            models.Index(fields=["department", "is_active"], name="emp_dept_active_idx"),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(end_date__isnull=True) | Q(start_date__isnull=True)
+                | Q(end_date__gte=F("start_date")),
+                name="employee_dates_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.code} — {self.full_name}"
+
+    def clean(self):
+        super().clean()
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError({
+                "end_date": "تاريخ نهاية العمل لا يمكن أن يسبق تاريخ البداية."
+            })
+
+
 # ---------------------------------------------------------------- expense category
 class ExpenseCategory(TimeStampedModel):
     """تصنيف المصروفات — referenced by expense accounts (Account.expense_category)."""

@@ -131,7 +131,7 @@ URL_PERMISSIONS: dict[str, str] = {
 }
 
 # PHASE 4 — every reference module page (direct URL included)
-for _slug in ("currency", "fiscal_year", "period", "department", "account",
+for _slug in ("currency", "fiscal_year", "period", "department", "employee", "account",
               "expense_category", "supplier"):
     URL_PERMISSIONS[f"reference:{_slug}_list"] = "reference.view"
     URL_PERMISSIONS[f"reference:{_slug}_detail"] = "reference.view"
@@ -159,6 +159,22 @@ URL_PERMISSIONS.update({
     "budget:line_create": "budget.edit",
     "budget:line_edit": "budget.edit",
     "budget:line_delete": "budget.edit",
+    "budget:plan_list": "budget.view",
+    "budget:plan_detail": "budget.view",
+    "budget:plan_monthly_output": "budget.view",
+    "budget:plan_summary_output": "budget.view",
+    "budget:plan_analytical_accounts": "budget.view",
+    "budget:plan_department_employees": "budget.view",
+    "budget:plan_create": "budget.edit",
+    "budget:plan_edit": "budget.edit",
+    "budget:plan_delete": "budget.edit",
+    "budget:plan_section_create": "budget.edit",
+    "budget:plan_section_edit": "budget.edit",
+    "budget:plan_section_delete": "budget.edit",
+    "budget:plan_line_create": "budget.edit",
+    "budget:plan_line_edit": "budget.edit",
+    "budget:plan_line_delete": "budget.edit",
+    "budget:plan_line_copy": "budget.edit",
     "budget:template_list": "budget.view",
     "budget:template_detail": "budget.view",
     "budget:template_sheet": "budget.view",

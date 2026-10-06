@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 
@@ -24,6 +24,7 @@ from apps.reference.models import (
     Account,
     Currency,
     Department,
+    Employee,
     ExpenseCategory,
     FiscalYear,
 )
@@ -253,6 +254,297 @@ class BudgetLine(TimeStampedModel):
 
 
 # ---------------------------------------------------------------- configurable workbook templates
+class BudgetPlan(TimeStampedModel):
+    STATUS_DRAFT = "draft"
+    STATUS_REVIEW = "review"
+    STATUS_APPROVED = "approved"
+    STATUS_ARCHIVED = "archived"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "مسودة"),
+        (STATUS_REVIEW, "قيد المراجعة"),
+        (STATUS_APPROVED, "معتمد"),
+        (STATUS_ARCHIVED, "مؤرشف"),
+    ]
+
+    name = models.CharField("اسم نموذج التخطيط", max_length=180)
+    fiscal_year = models.ForeignKey(
+        FiscalYear, on_delete=models.PROTECT, related_name="budget_plans",
+        verbose_name="السنة المالية",
+    )
+    currency = models.ForeignKey(
+        Currency, on_delete=models.PROTECT, related_name="budget_plans",
+        verbose_name="العملة",
+    )
+    description = models.TextField("الوصف", blank=True)
+    status = models.CharField(
+        "الحالة", max_length=12, choices=STATUS_CHOICES, default=STATUS_DRAFT,
+    )
+    version = models.PositiveSmallIntegerField("رقم الإصدار", default=1)
+
+    class Meta:
+        db_table = "budget_plans"
+        verbose_name = "نموذج تخطيط موازنة"
+        verbose_name_plural = "نماذج تخطيط الموازنة"
+        ordering = ["-fiscal_year__year", "name", "-version"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "fiscal_year", "version"],
+                name="uq_budget_plan_name_year_version",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} — {self.fiscal_year.code} (v{self.version})"
+
+    @property
+    def is_locked(self) -> bool:
+        return self.status in {self.STATUS_APPROVED, self.STATUS_ARCHIVED}
+
+
+class BudgetPlanSection(TimeStampedModel):
+    plan = models.ForeignKey(
+        BudgetPlan, on_delete=models.CASCADE, related_name="sections",
+        verbose_name="نموذج التخطيط",
+    )
+    name = models.CharField("اسم القسم", max_length=180)
+    description = models.TextField("الوصف", blank=True)
+    position = models.PositiveIntegerField("الترتيب", default=1)
+    default_main_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="default_budget_plan_sections", verbose_name="الحساب الرئيسي الافتراضي",
+    )
+
+    class Meta:
+        db_table = "budget_plan_sections"
+        verbose_name = "قسم نموذج موازنة"
+        verbose_name_plural = "أقسام نماذج الموازنة"
+        ordering = ["position", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["plan", "position"], name="uq_budget_plan_section_position",
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        super().clean()
+        if self.default_main_account_id and (
+            not self.default_main_account.is_active
+            or self.default_main_account.account_type != "expense"
+        ):
+            raise ValidationError({
+                "default_main_account": "يجب اختيار حساب مصروف نشط."
+            })
+
+
+class BudgetPlanLine(TimeStampedModel):
+    TYPE_TITLE = "title"
+    TYPE_MAIN_ACCOUNT = "main_account"
+    TYPE_ANALYTICAL_ACCOUNT = "analytical_account"
+    TYPE_DETAIL = "detail"
+    TYPE_SUBTOTAL = "subtotal"
+    TYPE_TOTAL = "total"
+    TYPE_NOTE = "note"
+    ROW_TYPE_CHOICES = [
+        (TYPE_TITLE, "عنوان"),
+        (TYPE_MAIN_ACCOUNT, "حساب رئيسي"),
+        (TYPE_ANALYTICAL_ACCOUNT, "حساب تحليلي"),
+        (TYPE_DETAIL, "تفصيل"),
+        (TYPE_SUBTOTAL, "إجمالي فرعي"),
+        (TYPE_TOTAL, "إجمالي عام"),
+        (TYPE_NOTE, "ملاحظة"),
+    ]
+
+    INPUT_NONE = "none"
+    INPUT_ANNUAL = "annual"
+    INPUT_MONTHLY = "monthly"
+    INPUT_QUANTITY_PRICE = "quantity_price"
+    INPUT_PERIODIC = "periodic"
+    INPUT_MODE_CHOICES = [
+        (INPUT_NONE, "بدون إدخال"),
+        (INPUT_ANNUAL, "مبلغ سنوي"),
+        (INPUT_MONTHLY, "مبالغ شهرية"),
+        (INPUT_QUANTITY_PRICE, "كمية × سعر وحدة"),
+        (INPUT_PERIODIC, "مبلغ دوري × عدد الفترات"),
+    ]
+
+    DIST_NONE = "none"
+    DIST_EQUAL = "equal"
+    DIST_MANUAL = "manual"
+    DIST_SINGLE_MONTH = "single_month"
+    DIST_SELECTED_MONTHS = "selected_months"
+    DISTRIBUTION_CHOICES = [
+        (DIST_NONE, "بدون توزيع"),
+        (DIST_EQUAL, "متساوٍ على 12 شهرًا"),
+        (DIST_MANUAL, "يدوي"),
+        (DIST_SINGLE_MONTH, "شهر واحد"),
+        (DIST_SELECTED_MONTHS, "أشهر مختارة"),
+    ]
+
+    section = models.ForeignKey(
+        BudgetPlanSection, on_delete=models.CASCADE, related_name="lines",
+        verbose_name="القسم",
+    )
+    parent = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True,
+        related_name="children", verbose_name="البند الأب",
+    )
+    position = models.PositiveIntegerField("الترتيب", default=1)
+    row_type = models.CharField(
+        "نوع الصف", max_length=24, choices=ROW_TYPE_CHOICES, default=TYPE_DETAIL,
+    )
+    display_name = models.CharField("اسم العرض", max_length=220)
+    main_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="budget_plan_main_lines", verbose_name="الحساب الرئيسي",
+    )
+    analytical_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="budget_plan_analytical_lines", verbose_name="الحساب التحليلي",
+    )
+    department = models.ForeignKey(
+        Department, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="budget_plan_lines", verbose_name="الإدارة",
+    )
+    employee = models.ForeignKey(
+        Employee, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="budget_plan_lines", verbose_name="الموظف",
+    )
+    unit_of_measure = models.CharField("وحدة القياس", max_length=80, blank=True)
+    input_mode = models.CharField(
+        "طريقة الإدخال", max_length=24, choices=INPUT_MODE_CHOICES, default=INPUT_NONE,
+    )
+    distribution_method = models.CharField(
+        "طريقة التوزيع", max_length=24, choices=DISTRIBUTION_CHOICES, default=DIST_NONE,
+    )
+    annual_amount = models.DecimalField(
+        "المبلغ السنوي", max_digits=14, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    quantity = models.DecimalField(
+        "الكمية", max_digits=14, decimal_places=4, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    unit_price = models.DecimalField(
+        "سعر الوحدة", max_digits=14, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    periodic_amount = models.DecimalField(
+        "المبلغ الدوري", max_digits=14, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    periods_count = models.PositiveSmallIntegerField("عدد الفترات", default=0)
+    single_month = models.PositiveSmallIntegerField(
+        "شهر الصرف", null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+    )
+    selected_months = models.JSONField("الأشهر المختارة", default=list, blank=True)
+    aggregate_sections = models.ManyToManyField(
+        BudgetPlanSection, blank=True, related_name="aggregate_lines",
+        verbose_name="الأقسام الداخلة في الإجمالي",
+        help_text="يستخدم مع صفوف الإجمالي فقط، ولا يكرر المبالغ في المخرجات.",
+    )
+    estimation_basis = models.TextField("أساس التقدير", blank=True)
+    is_included = models.BooleanField("مضمّن في الإجماليات", default=True)
+
+    class Meta:
+        db_table = "budget_plan_lines"
+        verbose_name = "بند نموذج موازنة"
+        verbose_name_plural = "بنود نماذج الموازنة"
+        ordering = ["section__position", "position", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["section", "position"], name="uq_budget_plan_line_position",
+            ),
+        ]
+
+    def __str__(self):
+        return self.display_name
+
+    @property
+    def plan(self):
+        return self.section.plan
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.parent_id and self.parent.section_id != self.section_id:
+            errors["parent"] = "يجب أن يكون البند الأب داخل القسم نفسه."
+        seen, node = set(), self.parent
+        while node is not None:
+            if node.pk == self.pk:
+                errors["parent"] = "توجد دورة في شجرة بنود الموازنة."
+                break
+            if node.pk in seen:
+                break
+            seen.add(node.pk)
+            node = node.parent
+        for field_name in ("main_account", "analytical_account"):
+            account = getattr(self, field_name)
+            if account and (not account.is_active or account.account_type != "expense"):
+                errors[field_name] = "يجب اختيار حساب مصروف نشط."
+        if self.main_account and self.analytical_account:
+            node = self.analytical_account.parent
+            is_descendant = False
+            while node is not None:
+                if node.pk == self.main_account.pk:
+                    is_descendant = True
+                    break
+                node = node.parent
+            if not is_descendant:
+                errors["analytical_account"] = "الحساب التحليلي يجب أن يتبع الحساب الرئيسي."
+        if self.employee and self.department and self.employee.department_id != self.department_id:
+            errors["employee"] = "الموظف المختار لا يتبع الإدارة المحددة."
+        if self.single_month is not None and not 1 <= self.single_month <= 12:
+            errors["single_month"] = "الشهر يجب أن يكون بين 1 و12."
+        invalid_months = [
+            m for m in (self.selected_months or [])
+            if not isinstance(m, int) or not 1 <= m <= 12
+        ]
+        if invalid_months:
+            errors["selected_months"] = "الأشهر المختارة يجب أن تكون أرقامًا من 1 إلى 12."
+        if self.distribution_method == self.DIST_SINGLE_MONTH and not self.single_month:
+            errors["single_month"] = "حدد شهر الصرف."
+        if self.distribution_method == self.DIST_SELECTED_MONTHS and not self.selected_months:
+            errors["selected_months"] = "اختر شهرًا واحدًا على الأقل."
+        if errors:
+            raise ValidationError(errors)
+
+
+class BudgetPlanPeriodAmount(models.Model):
+    line = models.ForeignKey(
+        BudgetPlanLine, on_delete=models.CASCADE, related_name="period_amounts",
+        verbose_name="البند",
+    )
+    month = models.PositiveSmallIntegerField(
+        "الشهر", validators=[MinValueValidator(1)],
+    )
+    amount = models.DecimalField(
+        "المبلغ", max_digits=14, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+
+    class Meta:
+        db_table = "budget_plan_period_amounts"
+        verbose_name = "مبلغ شهري لبند الموازنة"
+        verbose_name_plural = "المبالغ الشهرية لبنود الموازنة"
+        ordering = ["month"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["line", "month"], name="uq_budget_plan_line_month",
+            ),
+            models.CheckConstraint(
+                condition=Q(month__gte=1) & Q(month__lte=12),
+                name="budget_plan_month_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.line} — {self.month}: {self.amount}"
+
+
 class BudgetTemplate(TimeStampedModel):
     """A reusable Excel-originated workbook used to design budget inputs."""
 

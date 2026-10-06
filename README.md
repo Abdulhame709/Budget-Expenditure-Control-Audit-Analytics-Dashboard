@@ -1,5 +1,13 @@
 # Budget & Expenditure Control — Audit Analytics System
 
+## محرك نماذج الموازنة الديناميكي — المرحلة الأولى
+
+- [الخطة المتكاملة للتنفيذ والاستئناف](BUDGET_ENGINE_IMPLEMENTATION_PLAN_AR.md)
+- [مواصفات المرحلة الأولى](BUDGET_ENGINE_PHASE_1_SPEC_AR.md)
+- [تحليل مصنفات الموازنة لعام 2025](BUDGET_WORKBOOK_ANALYSIS_2025_AR.md)
+- [تقرير تنفيذ المرحلة الأولى](BUDGET_ENGINE_PHASE_1_IMPLEMENTATION_AR.md)
+- المحرك التشغيلي منفصل عن قوالب Excel المستوردة، ويولد النموذج التفصيلي والشهري والإجمالي من مصدر بيانات واحد.
+
 | | |
 |---|---|
 | **Project** | Budget & Expenditure Control — Audit Analytics System |

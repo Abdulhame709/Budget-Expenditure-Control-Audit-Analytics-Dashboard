@@ -6,11 +6,13 @@ so errors always surface in Arabic on the right field.
 from __future__ import annotations
 
 from django import forms
+from django.db.models import Q
 
 from .models import (
     Account,
     Currency,
     Department,
+    Employee,
     ExpenseCategory,
     FiscalYear,
     MonthlyPeriod,
@@ -114,6 +116,36 @@ class DepartmentForm(forms.ModelForm):
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
+
+
+class EmployeeForm(forms.ModelForm):
+    class Meta:
+        model = Employee
+        fields = [
+            "code", "full_name", "department", "cost_center", "job_title",
+            "contract_type", "start_date", "end_date", "is_active", "notes",
+        ]
+        widgets = {
+            "code": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
+            "full_name": forms.TextInput(attrs={"class": "form-control"}),
+            "department": forms.Select(attrs={"class": "form-select"}),
+            "cost_center": forms.TextInput(attrs={"class": "form-control"}),
+            "job_title": forms.TextInput(attrs={"class": "form-control"}),
+            "contract_type": forms.Select(attrs={"class": "form-select"}),
+            "start_date": DATE_INPUT,
+            "end_date": DATE_INPUT,
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        queryset = Department.objects.filter(is_active=True)
+        if self.instance.pk and self.instance.department_id:
+            queryset = Department.objects.filter(
+                Q(is_active=True) | Q(pk=self.instance.department_id)
+            )
+        self.fields["department"].queryset = queryset.order_by("code")
 
 
 class ExpenseCategoryForm(forms.ModelForm):

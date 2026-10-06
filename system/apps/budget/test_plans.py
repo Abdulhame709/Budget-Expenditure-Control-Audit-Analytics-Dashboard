@@ -236,6 +236,18 @@ class BudgetPlanOutputTests(BudgetPlanFixture):
             Decimal("1800.00"),
         )
 
+    def test_detailed_output_orders_children_after_parent_with_depth(self):
+        parent = self.make_line(
+            row_type=BudgetPlanLine.TYPE_MAIN_ACCOUNT,
+            input_mode=BudgetPlanLine.INPUT_NONE,
+            distribution_method=BudgetPlanLine.DIST_NONE,
+            annual_amount=0,
+        )
+        child = self.make_line(position=2, parent=parent)
+        items = services.detailed_plan_output(self.plan)[0]["lines"]
+        self.assertEqual([item["line"].pk for item in items], [parent.pk, child.pk])
+        self.assertEqual([item["depth"] for item in items], [0, 1])
+
 
 class BudgetPlanHttpTests(BudgetPlanFixture):
     def setUp(self):
@@ -312,6 +324,63 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
         self.assertContains(response, 'id="id_main_account"')
         self.assertContains(response, 'id="id_analytical_account"')
         self.assertContains(response, self.main_account.name)
+
+    def test_add_child_link_prefills_parent(self):
+        parent = self.make_line()
+        response = self.client_for(self.admin).get(
+            reverse("budget:plan_line_create", args=[self.section.pk]),
+            {"parent": parent.pk},
+        )
+        self.assertEqual(response.context["form"].initial["parent"], str(parent.pk))
+        self.assertContains(response, "يتبع للبند / المجموعة")
+
+    def test_admin_moves_sibling_line_and_toggles_inclusion(self):
+        first = self.make_line(position=1, display_name="الأول")
+        second = self.make_line(position=2, display_name="الثاني")
+        client = self.client_for(self.admin)
+        response = client.post(
+            reverse("budget:plan_line_move", args=[second.pk, "up"]),
+        )
+        self.assertRedirects(response, reverse("budget:plan_detail", args=[self.plan.pk]))
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual((first.position, second.position), (2, 1))
+
+        response = client.post(reverse("budget:plan_line_toggle_included", args=[second.pk]))
+        self.assertRedirects(response, reverse("budget:plan_detail", args=[self.plan.pk]))
+        second.refresh_from_db()
+        self.assertFalse(second.is_included)
+
+    def test_title_row_is_saved_without_amount_or_account_links(self):
+        data = {
+            "position": "1",
+            "row_type": BudgetPlanLine.TYPE_TITLE,
+            "display_name": "عنوان المجموعة",
+            "main_account": str(self.main_account.pk),
+            "analytical_account": str(self.analytical_account.pk),
+            "department": str(self.finance.pk),
+            "employee": str(self.employee.pk),
+            "unit_of_measure": "ريال",
+            "input_mode": BudgetPlanLine.INPUT_ANNUAL,
+            "distribution_method": BudgetPlanLine.DIST_EQUAL,
+            "annual_amount": "1200",
+            "quantity": "0",
+            "unit_price": "0",
+            "periodic_amount": "0",
+            "periods_count": "0",
+            "estimation_basis": "عنوان تنظيمي",
+            "is_included": "on",
+        }
+        response = self.client_for(self.admin).post(
+            reverse("budget:plan_line_create", args=[self.section.pk]), data,
+        )
+        self.assertRedirects(response, reverse("budget:plan_detail", args=[self.plan.pk]))
+        line = BudgetPlanLine.objects.get(display_name="عنوان المجموعة")
+        self.assertEqual(line.input_mode, BudgetPlanLine.INPUT_NONE)
+        self.assertEqual(line.distribution_method, BudgetPlanLine.DIST_NONE)
+        self.assertEqual(line.annual_amount, Decimal("0.00"))
+        self.assertIsNone(line.main_account)
+        self.assertIsNone(line.analytical_account)
 
     def test_admin_creates_monthly_line_from_editor(self):
         data = {

@@ -90,6 +90,11 @@ class BudgetPlanSectionForm(forms.ModelForm):
         return cleaned
 
 
+class BudgetPlanParentChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return f"{obj.position}. {obj.display_name} — {obj.get_row_type_display()}"
+
+
 class BudgetPlanLineForm(forms.ModelForm):
     selected_months = forms.MultipleChoiceField(
         label="الأشهر المختارة", choices=MONTH_CHOICES, required=False,
@@ -143,6 +148,13 @@ class BudgetPlanLineForm(forms.ModelForm):
     def __init__(self, *args, section=None, **kwargs):
         self.section = section or getattr(kwargs.get("instance"), "section", None)
         super().__init__(*args, **kwargs)
+        self.fields["parent"] = BudgetPlanParentChoiceField(
+            queryset=BudgetPlanLine.objects.none(), required=False,
+            label="يتبع للبند / المجموعة",
+            empty_label="— بند مستقل (بدون أب) —",
+            help_text="اختياري: اختر بندًا محفوظًا من القسم نفسه لتجميع البنود في شكل شجرة.",
+            widget=forms.Select(attrs={"class": "form-select"}),
+        )
         main_accounts = Account.objects.main_accounts().filter(
             account_type="expense",
         ).order_by("code")
@@ -173,11 +185,20 @@ class BudgetPlanLineForm(forms.ModelForm):
         self.fields["department"].queryset = departments
         self.fields["employee"].queryset = employees
         if self.section:
-            self.fields["parent"].queryset = self.section.lines.exclude(
-                pk=getattr(self.instance, "pk", None)
+            parent_queryset = self.section.lines.exclude(
+                pk=getattr(self.instance, "pk", None),
             )
+            self.fields["parent"].queryset = parent_queryset.order_by("position", "pk")
             self.fields["aggregate_sections"].queryset = self.section.plan.sections.all()
+            if not self.is_bound and not self.instance.pk:
+                last_position = self.section.lines.order_by("-position").values_list(
+                    "position", flat=True,
+                ).first()
+                self.fields["position"].initial = (last_position or 0) + 1
+                if self.section.default_main_account_id:
+                    self.fields["main_account"].initial = self.section.default_main_account_id
         if self.instance.pk:
+            self.fields["parent"].initial = self.instance.parent_id
             self.initial["selected_months"] = [str(m) for m in self.instance.selected_months]
             month_map = {row.month: row.amount for row in self.instance.period_amounts.all()}
             for month in range(1, 13):
@@ -194,15 +215,68 @@ class BudgetPlanLineForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
+        row_type = cleaned.get("row_type")
+        input_mode = cleaned.get("input_mode")
+        input_row_types = {
+            BudgetPlanLine.TYPE_ANALYTICAL_ACCOUNT,
+            BudgetPlanLine.TYPE_DETAIL,
+        }
+        account_row_types = {
+            BudgetPlanLine.TYPE_MAIN_ACCOUNT,
+            BudgetPlanLine.TYPE_ANALYTICAL_ACCOUNT,
+            BudgetPlanLine.TYPE_DETAIL,
+        }
+        total_row_types = {
+            BudgetPlanLine.TYPE_SUBTOTAL,
+            BudgetPlanLine.TYPE_TOTAL,
+        }
+
+        if row_type not in account_row_types:
+            cleaned["main_account"] = None
+            cleaned["analytical_account"] = None
+        elif row_type == BudgetPlanLine.TYPE_MAIN_ACCOUNT:
+            cleaned["analytical_account"] = None
+            if not cleaned.get("main_account"):
+                self.add_error("main_account", "اختر الحساب الرئيسي لهذا الصف.")
+        elif not cleaned.get("main_account"):
+            self.add_error("main_account", "اختر الحساب الرئيسي أولًا.")
+        elif not cleaned.get("analytical_account"):
+            self.add_error("analytical_account", "اختر الحساب التحليلي التابع للحساب الرئيسي.")
+
+        if row_type != BudgetPlanLine.TYPE_DETAIL:
+            cleaned["employee"] = None
+        if row_type not in total_row_types:
+            cleaned["aggregate_sections"] = BudgetPlanSection.objects.none()
+
+        if row_type not in input_row_types:
+            cleaned["input_mode"] = BudgetPlanLine.INPUT_NONE
+            cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
+            cleaned["annual_amount"] = 0
+            cleaned["quantity"] = 0
+            cleaned["unit_price"] = 0
+            cleaned["periodic_amount"] = 0
+            cleaned["periods_count"] = 0
+            cleaned["single_month"] = None
+            cleaned["selected_months"] = []
+            input_mode = BudgetPlanLine.INPUT_NONE
+
         aggregate_sections = cleaned.get("aggregate_sections")
         if aggregate_sections and self.section:
             if aggregate_sections.exclude(plan=self.section.plan).exists():
                 self.add_error("aggregate_sections", "يجب اختيار أقسام من النموذج نفسه.")
-        if cleaned.get("input_mode") == BudgetPlanLine.INPUT_MONTHLY:
+        if input_mode == BudgetPlanLine.INPUT_MONTHLY:
             cleaned["distribution_method"] = BudgetPlanLine.DIST_MANUAL
             cleaned["annual_amount"] = sum(self.monthly_values().values())
             self.instance.distribution_method = BudgetPlanLine.DIST_MANUAL
             self.instance.annual_amount = cleaned["annual_amount"]
+        elif input_mode == BudgetPlanLine.INPUT_NONE:
+            cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
+            cleaned["annual_amount"] = 0
+        distribution_method = cleaned.get("distribution_method")
+        if distribution_method != BudgetPlanLine.DIST_SINGLE_MONTH:
+            cleaned["single_month"] = None
+        if distribution_method != BudgetPlanLine.DIST_SELECTED_MONTHS:
+            cleaned["selected_months"] = []
         return cleaned
 
 

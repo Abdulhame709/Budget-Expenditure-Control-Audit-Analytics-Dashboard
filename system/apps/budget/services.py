@@ -216,9 +216,29 @@ def detailed_plan_output(plan: BudgetPlan) -> list[dict]:
         "lines__period_amounts",
     ).all():
         lines = []
-        for line in section.lines.select_related(
-            "main_account", "analytical_account", "department", "employee"
-        ).prefetch_related("aggregate_sections").all():
+        section_lines = list(section.lines.select_related(
+            "parent", "main_account", "analytical_account", "department", "employee"
+        ).prefetch_related("aggregate_sections").all())
+        children_by_parent = {}
+        line_ids = {line.pk for line in section_lines}
+        for line in section_lines:
+            parent_id = line.parent_id if line.parent_id in line_ids else None
+            children_by_parent.setdefault(parent_id, []).append(line)
+
+        ordered_lines = []
+
+        def append_branch(parent_id, depth):
+            for branch_line in children_by_parent.get(parent_id, []):
+                ordered_lines.append((branch_line, depth))
+                append_branch(branch_line.pk, depth + 1)
+
+        append_branch(None, 0)
+        ordered_ids = {line.pk for line, _depth in ordered_lines}
+        ordered_lines.extend(
+            (line, 0) for line in section_lines if line.pk not in ordered_ids
+        )
+
+        for line, depth in ordered_lines:
             month_map = {row.month: row.amount for row in line.period_amounts.all()}
             annual_amount = line.annual_amount
             if line.input_mode == BudgetPlanLine.INPUT_NONE and line.aggregate_sections.exists():
@@ -232,6 +252,7 @@ def detailed_plan_output(plan: BudgetPlan) -> list[dict]:
                         month_map[period.month] += period.amount
             lines.append({
                 "line": line,
+                "depth": depth,
                 "monthly": [month_map.get(month, ZERO) for month in range(1, 13)],
                 "annual_amount": annual_amount,
             })

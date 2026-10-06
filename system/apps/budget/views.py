@@ -17,7 +17,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import models, transaction
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -850,8 +850,14 @@ def plan_section_delete(request, pk):
 
 
 def _line_form_response(request, section, line=None):
+    initial = None
+    if request.method == "GET" and line is None:
+        initial = {}
+        parent_id = request.GET.get("parent")
+        if parent_id and section.lines.filter(pk=parent_id).exists():
+            initial["parent"] = parent_id
     form = forms.BudgetPlanLineForm(
-        request.POST or None, instance=line, section=section,
+        request.POST or None, instance=line, section=section, initial=initial,
     )
     if request.method == "POST" and form.is_valid():
         try:
@@ -928,12 +934,14 @@ def plan_line_copy(request, pk):
     with transaction.atomic():
         last_position = source.section.lines.aggregate(value=models.Max("position"))["value"] or 0
         monthly = {row.month: row.amount for row in source.period_amounts.all()}
+        aggregate_section_ids = list(source.aggregate_sections.values_list("pk", flat=True))
         source.pk = None
         source.position = last_position + 1
         source.display_name = f"{source.display_name} - نسخة"
         source.created_by = request.user
         source.updated_by = request.user
         source.save()
+        source.aggregate_sections.set(aggregate_section_ids)
         services.sync_plan_line_amounts(source, monthly)
         log_action(
             action="budget_plan_line_copied", entity_type="budgetplanline",
@@ -941,6 +949,59 @@ def plan_line_copy(request, pk):
         )
     messages.success(request, "تم نسخ البند.")
     return redirect("budget:plan_detail", pk=source.plan.pk)
+
+
+@require_permission("budget.edit")
+@require_POST
+def plan_line_move(request, pk, direction):
+    line = get_object_or_404(BudgetPlanLine.objects.select_related("section__plan"), pk=pk)
+    _ensure_plan_editable(line.plan)
+    if direction not in {"up", "down"}:
+        raise Http404
+    siblings = line.section.lines.filter(parent_id=line.parent_id).exclude(pk=line.pk)
+    if direction == "up":
+        neighbor = siblings.filter(position__lt=line.position).order_by("-position", "-pk").first()
+    else:
+        neighbor = siblings.filter(position__gt=line.position).order_by("position", "pk").first()
+    if neighbor:
+        with transaction.atomic():
+            old_position = line.position
+            temporary_position = (
+                line.section.lines.aggregate(value=models.Max("position"))["value"] or 0
+            ) + 1
+            line.position = temporary_position
+            line.updated_by = request.user
+            line.save(update_fields=["position", "updated_by", "updated_at"])
+            line.position = neighbor.position
+            neighbor.position = old_position
+            neighbor.updated_by = request.user
+            neighbor.save(update_fields=["position", "updated_by", "updated_at"])
+            line.save(update_fields=["position", "updated_by", "updated_at"])
+        log_action(
+            action="budget_plan_line_moved", entity_type="budgetplanline",
+            entity_id=line.pk, diff={"direction": direction}, request=request,
+        )
+        messages.success(request, "تم تغيير ترتيب البند.")
+    return redirect("budget:plan_detail", pk=line.plan.pk)
+
+
+@require_permission("budget.edit")
+@require_POST
+def plan_line_toggle_included(request, pk):
+    line = get_object_or_404(BudgetPlanLine.objects.select_related("section__plan"), pk=pk)
+    _ensure_plan_editable(line.plan)
+    line.is_included = not line.is_included
+    line.updated_by = request.user
+    line.save(update_fields=["is_included", "updated_by", "updated_at"])
+    log_action(
+        action="budget_plan_line_inclusion_toggled", entity_type="budgetplanline",
+        entity_id=line.pk, diff={"is_included": line.is_included}, request=request,
+    )
+    messages.success(
+        request,
+        "تم تضمين البند في الإجماليات." if line.is_included else "تم استبعاد البند من الإجماليات.",
+    )
+    return redirect("budget:plan_detail", pk=line.plan.pk)
 
 
 def plan_monthly_output(request, pk):

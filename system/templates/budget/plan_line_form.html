@@ -1,22 +1,80 @@
 {% extends "base.html" %}
 {% block title %}بند نموذج الموازنة{% endblock %}
 {% block content %}
-<h1 class="h3 mb-1">{% if line %}تعديل بند{% else %}إضافة بند{% endif %}</h1><p class="text-muted">{{ plan.name }} — {{ section.name }}</p>
+<style>
+  .smart-field[hidden], #monthly-fields-section[hidden] { display: none !important; }
+  .smart-editor-summary { position: sticky; top: .75rem; z-index: 10; }
+</style>
+<div class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-3">
+  <div><h1 class="h3 mb-1">{% if line %}تعديل بند{% else %}إضافة بند{% endif %}</h1><p class="text-muted mb-0">{{ plan.name }} — {{ section.name }}</p></div>
+  <a class="btn btn-outline-secondary" href="{% url 'budget:plan_detail' plan.pk %}">العودة إلى النموذج</a>
+</div>
+<div class="alert alert-info py-2">اختر نوع الصف أولًا؛ سيعرض النظام الحقول اللازمة فقط. حقل «يتبع للبند / المجموعة» اختياري ويستخدم لبناء شجرة البنود.</div>
 <form method="post" class="card border-0 shadow-sm" id="plan-line-form"><div class="card-body">{% csrf_token %}
   {% for error in form.non_field_errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
   <div class="row g-3">
-  {% for field in non_month_fields %}<div class="col-md-{% if field.name == 'estimation_basis' or field.name == 'selected_months' %}12{% else %}6{% endif %}" data-field="{{ field.name }}"><label class="form-label">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}
+  {% for field in non_month_fields %}<div class="smart-field col-md-{% if field.name == 'estimation_basis' or field.name == 'selected_months' or field.name == 'aggregate_sections' %}12{% else %}6{% endif %}" data-field="{{ field.name }}"><label class="form-label">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}
   </div>
-  <hr><h2 class="h5">التوزيع الشهري اليدوي</h2><div class="row g-2">{% for field in month_fields %}<div class="col-6 col-md-3 col-xl-2"><label class="form-label small">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}</div>
+  <div id="monthly-fields-section"><hr><h2 class="h5">التوزيع الشهري اليدوي</h2><p class="text-muted small">أدخل المبالغ لكل شهر، وسيحسب النظام الإجمالي السنوي تلقائيًا.</p><div class="row g-2">{% for field in month_fields %}<div class="col-6 col-md-3 col-xl-2"><label class="form-label small">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}</div></div>
+  <div class="smart-editor-summary alert alert-light border mt-4 mb-0 d-flex justify-content-between align-items-center"><span>الإجمالي السنوي المتوقع</span><strong id="annual-preview">0.00</strong></div>
   <div class="mt-4"><button class="btn btn-primary" type="submit">حفظ وإعادة الحساب</button> <a class="btn btn-outline-secondary" href="{% url 'budget:plan_detail' plan.pk %}">إلغاء</a></div>
 </div></form>
 <script>
 (function(){
   const main=document.getElementById('id_main_account'), analytical=document.getElementById('id_analytical_account');
   const department=document.getElementById('id_department'), employee=document.getElementById('id_employee');
+  const rowType=document.getElementById('id_row_type'), inputMode=document.getElementById('id_input_mode');
+  const distribution=document.getElementById('id_distribution_method'), annual=document.getElementById('id_annual_amount');
+  const monthlySection=document.getElementById('monthly-fields-section'), annualPreview=document.getElementById('annual-preview');
+  const inputRows=new Set(['analytical_account','detail']);
+  const accountRows=new Set(['main_account','analytical_account','detail']);
+  const totalRows=new Set(['subtotal','total']);
+  const controlled=['main_account','analytical_account','department','employee','unit_of_measure','input_mode','distribution_method','annual_amount','quantity','unit_price','periodic_amount','periods_count','single_month','selected_months','aggregate_sections','estimation_basis','is_included'];
+  const field=name=>document.querySelector(`[data-field="${name}"]`);
+  const show=(name,visible)=>{const element=field(name); if(element)element.hidden=!visible;};
+  const number=id=>Number.parseFloat(document.getElementById(id)?.value||0)||0;
   async function refill(select,url,placeholder){const current=select.value; const data=await fetch(url).then(r=>r.json()); select.innerHTML=`<option value="">${placeholder}</option>`; data.results.forEach(x=>select.add(new Option(x.text,x.id))); if([...select.options].some(o=>o.value===current))select.value=current;}
   main?.addEventListener('change',()=>refill(analytical,`{% url 'budget:plan_analytical_accounts' %}?main_account=${main.value}`,'— اختر الحساب التحليلي —'));
   department?.addEventListener('change',()=>refill(employee,`{% url 'budget:plan_department_employees' %}?department=${department.value}`,'— اختر الموظف —'));
+  function updatePreview(){
+    let total=number('id_annual_amount');
+    if(inputMode?.value==='monthly')total=[...Array(12)].reduce((sum,_,index)=>sum+number(`id_m${String(index+1).padStart(2,'0')}`),0);
+    if(inputMode?.value==='quantity_price')total=number('id_quantity')*number('id_unit_price');
+    if(inputMode?.value==='periodic')total=number('id_periodic_amount')*number('id_periods_count');
+    annualPreview.textContent=new Intl.NumberFormat('ar-YE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(total);
+    if(annual && inputMode?.value!=='annual')annual.value=total.toFixed(2);
+  }
+  function updateSmartFields(normalize){
+    const type=rowType?.value||'detail';
+    if(normalize && !inputRows.has(type)){inputMode.value='none'; distribution.value='none';}
+    if(normalize && inputMode?.value==='monthly')distribution.value='manual';
+    controlled.forEach(name=>show(name,false));
+    if(accountRows.has(type))show('main_account',true);
+    if(type==='analytical_account'||type==='detail')show('analytical_account',true);
+    if(type==='analytical_account'||type==='detail'){show('department',true); show('estimation_basis',true); show('is_included',true);}
+    if(type==='detail'){show('employee',true); show('unit_of_measure',true);}
+    if(type==='title'||type==='note')show('estimation_basis',true);
+    if(totalRows.has(type)){show('aggregate_sections',true); show('estimation_basis',true); show('is_included',true);}
+    if(inputRows.has(type))show('input_mode',true);
+    const mode=inputRows.has(type)?inputMode?.value:'none';
+    const hasInput=mode&&mode!=='none';
+    show('distribution_method',hasInput);
+    show('annual_amount',hasInput);
+    show('quantity',mode==='quantity_price'); show('unit_price',mode==='quantity_price');
+    show('periodic_amount',mode==='periodic'); show('periods_count',mode==='periodic');
+    const method=distribution?.value;
+    show('single_month',hasInput&&method==='single_month');
+    show('selected_months',hasInput&&method==='selected_months');
+    monthlySection.hidden=!(mode==='monthly'||method==='manual');
+    if(annual)annual.readOnly=mode!=='annual';
+    updatePreview();
+  }
+  rowType?.addEventListener('change',()=>updateSmartFields(true));
+  inputMode?.addEventListener('change',()=>updateSmartFields(true));
+  distribution?.addEventListener('change',()=>updateSmartFields(false));
+  document.getElementById('plan-line-form')?.addEventListener('input',updatePreview);
+  updateSmartFields(false);
+  if(main?.value&&analytical&&analytical.options.length<=1)refill(analytical,`{% url 'budget:plan_analytical_accounts' %}?main_account=${main.value}`,'— اختر الحساب التحليلي —');
 })();
 </script>
 {% endblock %}

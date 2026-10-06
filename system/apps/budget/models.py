@@ -309,6 +309,11 @@ class BudgetPlanSection(TimeStampedModel):
         verbose_name="نموذج التخطيط",
     )
     name = models.CharField("اسم القسم", max_length=180)
+    department = models.ForeignKey(
+        Department, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="budget_plan_sections", verbose_name="الإدارة/القسم التنظيمي",
+        help_text="يرتبط مباشرة بالهيكل التنظيمي في وحدة الإدارات.",
+    )
     description = models.TextField("الوصف", blank=True)
     position = models.PositiveIntegerField("الترتيب", default=1)
     default_main_account = models.ForeignKey(
@@ -325,6 +330,11 @@ class BudgetPlanSection(TimeStampedModel):
             models.UniqueConstraint(
                 fields=["plan", "position"], name="uq_budget_plan_section_position",
             ),
+            models.UniqueConstraint(
+                fields=["plan", "department"],
+                condition=Q(department__isnull=False),
+                name="uq_budget_plan_section_department",
+            ),
         ]
 
     def __str__(self):
@@ -332,14 +342,19 @@ class BudgetPlanSection(TimeStampedModel):
 
     def clean(self):
         super().clean()
+        errors = {}
+        if self.department_id and not self.department.is_active:
+            errors["department"] = "الإدارة/القسم التنظيمي المحدد غير نشط."
+        if self.department_id and not (self.name or "").strip():
+            self.name = self.department.name
         if self.default_main_account_id and (
             not self.default_main_account.is_active
             or self.default_main_account.account_type != "expense"
             or self.default_main_account.level != 5
         ):
-            raise ValidationError({
-                "default_main_account": "يجب اختيار حساب مصروف نشط من المستوى الخامس."
-            })
+            errors["default_main_account"] = "يجب اختيار حساب مصروف نشط من المستوى الخامس."
+        if errors:
+            raise ValidationError(errors)
 
 
 class BudgetPlanLine(TimeStampedModel):
@@ -473,6 +488,14 @@ class BudgetPlanLine(TimeStampedModel):
     def clean(self):
         super().clean()
         errors = {}
+        section_department = self.section.department if self.section_id else None
+        if section_department:
+            if not self.department_id:
+                self.department = section_department
+            elif self.department_id != section_department.pk:
+                errors["department"] = (
+                    "إدارة البند يجب أن تطابق الإدارة/القسم المرتبط بقسم نموذج الموازنة."
+                )
         if self.parent_id and self.parent.section_id != self.section_id:
             errors["parent"] = "يجب أن يكون البند الأب داخل القسم نفسه."
         seen, node = set(), self.parent

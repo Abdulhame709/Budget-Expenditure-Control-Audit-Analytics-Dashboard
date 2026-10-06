@@ -204,7 +204,9 @@ def _plan_input_lines(plan: BudgetPlan):
 def detailed_plan_output(plan: BudgetPlan) -> list[dict]:
     """المخرج التفصيلي: كل الأقسام والصفوف مع المبالغ الشهرية إن وجدت."""
     result = []
-    for section in plan.sections.prefetch_related("lines__period_amounts").all():
+    for section in plan.sections.select_related("department").prefetch_related(
+        "lines__period_amounts",
+    ).all():
         lines = []
         for line in section.lines.select_related(
             "main_account", "analytical_account", "department", "employee"

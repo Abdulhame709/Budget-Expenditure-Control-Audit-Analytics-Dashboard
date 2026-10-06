@@ -7,7 +7,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.accounts.models import Role, UserRole
-from apps.budget import services
+from apps.budget import forms, services
 from apps.budget.models import (
     BudgetPlan,
     BudgetPlanLine,
@@ -49,6 +49,7 @@ class BudgetPlanFixture(TestCase):
         )
         self.section = BudgetPlanSection.objects.create(
             plan=self.plan, name="تفصيلي تكلفة المبيعات", position=1,
+            department=self.finance,
             default_main_account=self.main_account,
         )
 
@@ -70,6 +71,30 @@ class BudgetPlanFixture(TestCase):
 
 
 class BudgetPlanValidationTests(BudgetPlanFixture):
+    def test_section_department_is_unique_inside_plan(self):
+        duplicate = BudgetPlanSection(
+            plan=self.plan, name="قسم مكرر", position=2, department=self.finance,
+        )
+        with self.assertRaises(ValidationError):
+            duplicate.full_clean()
+
+    def test_line_inherits_section_department(self):
+        line = self.make_line(department=None)
+        line.full_clean()
+        self.assertEqual(line.department, self.finance)
+
+    def test_line_rejects_department_different_from_section(self):
+        line = self.make_line(department=self.operations)
+        with self.assertRaises(ValidationError) as ctx:
+            line.full_clean()
+        self.assertIn("department", ctx.exception.error_dict)
+
+    def test_line_form_limits_department_and_employees_to_section(self):
+        form = forms.BudgetPlanLineForm(section=self.section)
+        self.assertEqual(list(form.fields["department"].queryset), [self.finance])
+        self.assertEqual(list(form.fields["employee"].queryset), [self.employee])
+        self.assertTrue(form.fields["department"].disabled)
+
     def test_linked_accounts_must_be_level_five(self):
         self.other_account.level = 6
         self.other_account.save(update_fields=["level"])
@@ -225,6 +250,33 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
         self.assertEqual(client.get(reverse("budget:plan_detail", args=[self.plan.pk])).status_code, 200)
         self.assertEqual(client.get(reverse("budget:plan_edit", args=[self.plan.pk])).status_code, 403)
 
+    def test_plan_and_department_pages_link_to_each_other(self):
+        client = self.client_for(self.admin)
+        plan_response = client.get(reverse("budget:plan_detail", args=[self.plan.pk]))
+        self.assertContains(
+            plan_response, reverse("reference:department_detail", args=[self.finance.pk]),
+        )
+        department_response = client.get(
+            reverse("reference:department_detail", args=[self.finance.pk]),
+        )
+        self.assertContains(department_response, self.plan.name)
+        self.assertContains(department_response, "نماذج الموازنة المرتبطة")
+
+    def test_admin_creates_section_from_reference_department(self):
+        response = self.client_for(self.admin).post(
+            reverse("budget:plan_section_create", args=[self.plan.pk]),
+            {
+                "department": str(self.operations.pk),
+                "name": "",
+                "description": "",
+                "position": "2",
+                "default_main_account": str(self.main_account.pk),
+            },
+        )
+        self.assertRedirects(response, reverse("budget:plan_detail", args=[self.plan.pk]))
+        section = BudgetPlanSection.objects.get(plan=self.plan, department=self.operations)
+        self.assertEqual(section.name, self.operations.name)
+
     def test_locked_plan_rejects_line_creation(self):
         self.plan.status = BudgetPlan.STATUS_APPROVED
         self.plan.save(update_fields=["status"])
@@ -240,7 +292,7 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
             {"main_account": self.main_account.pk},
         )
         ids = {item["id"] for item in response.json()["results"]}
-        self.assertEqual(ids, {self.analytical_account.pk})
+        self.assertEqual(ids, {self.analytical_account.pk, self.other_account.pk})
         response = client.get(
             reverse("budget:plan_department_employees"),
             {"department": self.finance.pk},

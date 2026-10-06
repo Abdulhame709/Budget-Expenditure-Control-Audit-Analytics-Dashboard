@@ -11,9 +11,15 @@
 </div>
 {% if plan.description %}<div class="alert alert-light border">{{ plan.description }}</div>{% endif %}
 {% for group in sections %}{% with section=group.section %}
-<div class="card border-0 shadow-sm mb-3">
+<div class="card border-0 shadow-sm mb-3" id="section-{{ section.pk }}">
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
-    <div><strong>{{ section.position }}. {{ section.name }}</strong>{% if section.description %}<div class="small text-muted">{{ section.description }}</div>{% endif %}</div>
+    <div>
+      <strong>{{ section.position }}. {{ section.name }}</strong>
+      {% if section.department %}
+      <div class="small mt-1">مرتبط بـ <a href="{% url 'reference:department_detail' section.department.pk %}">{{ section.department }}</a></div>
+      {% endif %}
+      {% if section.description %}<div class="small text-muted">{{ section.description }}</div>{% endif %}
+    </div>
     {% if can_edit %}<div class="d-flex gap-1"><a class="btn btn-sm btn-primary" href="{% url 'budget:plan_line_create' section.pk %}">إضافة بند</a><a class="btn btn-sm btn-outline-secondary" href="{% url 'budget:plan_section_edit' section.pk %}">تعديل القسم</a><form method="post" action="{% url 'budget:plan_section_delete' section.pk %}" onsubmit="return confirm('حذف القسم وجميع بنوده؟');">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">حذف</button></form></div>{% endif %}
   </div>
   <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead class="table-light"><tr><th>#</th><th>نوع الصف</th><th>اسم العرض</th><th>الحساب الرئيسي</th><th>الحساب التحليلي</th><th>طريقة الإدخال</th><th>الإجمالي السنوي</th><th>أساس التقدير</th><th></th></tr></thead><tbody>

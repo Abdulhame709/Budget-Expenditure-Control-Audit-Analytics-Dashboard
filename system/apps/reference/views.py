@@ -418,6 +418,84 @@ def module_create(request, slug):
     })
 
 
+def _related_groups(slug, obj):
+    """Cross-module usage map for reference records."""
+    from apps.budget.models import Budget, BudgetLine, BudgetPlan, BudgetPlanLine, BudgetPlanSection
+    from apps.expenses.models import Expense
+    from apps.procurement.models import Procurement
+
+    groups = []
+
+    def add_group(title, items):
+        visible = [item for item in items if item.get("count", 0) or item.get("url")]
+        if visible:
+            groups.append({"title": title, "items": visible})
+
+    if slug == "department":
+        linked_sections = BudgetPlanSection.objects.filter(
+            department=obj,
+        ).select_related("plan", "plan__fiscal_year").order_by("-plan__fiscal_year__year", "position")
+        section_items = [
+            {
+                "label": f"{section.plan} — {section.name}",
+                "count": section.lines.count(),
+                "count_label": "بند",
+                "url": reverse("budget:plan_detail", args=[section.plan_id]) + f"#section-{section.pk}",
+            }
+            for section in linked_sections[:20]
+        ]
+        add_group("نماذج الموازنة المرتبطة", section_items)
+        add_group("السجلات التابعة والمستخدمة", [
+            {
+                "label": "الموظفون",
+                "count": obj.employees.count(),
+                "count_label": "موظف",
+                "url": reverse("reference:employee_list") + f"?department={obj.pk}",
+            },
+            {"label": "بنود الموازنة الشهرية", "count": BudgetLine.objects.filter(department=obj).count(), "count_label": "بند"},
+            {"label": "بنود نماذج الموازنة", "count": BudgetPlanLine.objects.filter(department=obj).count(), "count_label": "بند"},
+            {"label": "المصروفات", "count": Expense.objects.filter(department=obj).count(), "count_label": "سجل"},
+            {"label": "المشتريات", "count": Procurement.objects.filter(department=obj).count(), "count_label": "سجل"},
+        ])
+    elif slug == "employee":
+        add_group("الاستخدام في نماذج الموازنة", [
+            {"label": "بنود نماذج الموازنة", "count": BudgetPlanLine.objects.filter(employee=obj).count(), "count_label": "بند"},
+            {
+                "label": f"الإدارة: {obj.department}", "count": 1, "count_label": "",
+                "url": reverse("reference:department_detail", args=[obj.department_id]),
+            },
+        ])
+    elif slug == "account":
+        add_group("الاستخدام المالي", [
+            {"label": "بنود الموازنة الشهرية", "count": BudgetLine.objects.filter(account=obj).count(), "count_label": "بند"},
+            {"label": "بنود نماذج الموازنة", "count": BudgetPlanLine.objects.filter(Q(main_account=obj) | Q(analytical_account=obj)).count(), "count_label": "بند"},
+            {"label": "المصروفات", "count": Expense.objects.filter(account=obj).count(), "count_label": "سجل"},
+            {"label": "المشتريات", "count": Procurement.objects.filter(account=obj).count(), "count_label": "سجل"},
+        ])
+    elif slug == "fiscal_year":
+        add_group("الموازنات المرتبطة", [
+            {"label": "نماذج الموازنة التشغيلية", "count": BudgetPlan.objects.filter(fiscal_year=obj).count(), "count_label": "نموذج", "url": reverse("budget:plan_list")},
+            {"label": "الموازنات الشهرية", "count": Budget.objects.filter(fiscal_year=obj).count(), "count_label": "موازنة", "url": reverse("budget:budget_list")},
+        ])
+    elif slug == "currency":
+        add_group("الاستخدام في الموازنة", [
+            {"label": "نماذج الموازنة التشغيلية", "count": BudgetPlan.objects.filter(currency=obj).count(), "count_label": "نموذج", "url": reverse("budget:plan_list")},
+        ])
+    elif slug == "expense_category":
+        add_group("الاستخدام المالي", [
+            {"label": "الحسابات", "count": obj.accounts.count(), "count_label": "حساب"},
+            {"label": "بنود الموازنة", "count": BudgetLine.objects.filter(expense_category=obj).count(), "count_label": "بند"},
+            {"label": "المصروفات", "count": Expense.objects.filter(expense_category=obj).count(), "count_label": "سجل"},
+            {"label": "المشتريات", "count": Procurement.objects.filter(expense_category=obj).count(), "count_label": "سجل"},
+        ])
+    elif slug == "supplier":
+        add_group("السجلات المرتبطة", [
+            {"label": "المصروفات", "count": Expense.objects.filter(supplier=obj).count(), "count_label": "سجل"},
+            {"label": "المشتريات", "count": Procurement.objects.filter(supplier=obj).count(), "count_label": "سجل"},
+        ])
+    return groups
+
+
 def module_detail(request, slug, pk):
     cfg = _urls_for(slug, _cfg(slug))
     obj = get_object_or_404(cfg["model"], pk=pk)
@@ -433,6 +511,7 @@ def module_detail(request, slug, pk):
         )[:10]
     return render(request, "reference/module_detail.html", {
         **cfg, "obj": obj, "field_rows": field_rows, "audit_rows": audit_rows,
+        "related_groups": _related_groups(slug, obj),
         "can_edit": has_perm(request.user, "reference.edit"),
         "can_trail": has_perm(request.user, "audittrail.view"),
         "edit_url": reverse(f"reference:{slug}_edit", args=[obj.pk]),

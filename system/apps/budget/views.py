@@ -796,7 +796,7 @@ def plan_delete(request, pk):
 def plan_section_create(request, plan_pk):
     plan = get_object_or_404(BudgetPlan, pk=plan_pk)
     _ensure_plan_editable(plan)
-    form = forms.BudgetPlanSectionForm(request.POST or None)
+    form = forms.BudgetPlanSectionForm(request.POST or None, plan=plan)
     if request.method == "POST" and form.is_valid():
         section = form.save(commit=False)
         section.plan = plan
@@ -813,9 +813,13 @@ def plan_section_create(request, plan_pk):
 
 @require_permission("budget.edit")
 def plan_section_edit(request, pk):
-    section = get_object_or_404(BudgetPlanSection.objects.select_related("plan"), pk=pk)
+    section = get_object_or_404(
+        BudgetPlanSection.objects.select_related("plan", "department"), pk=pk,
+    )
     _ensure_plan_editable(section.plan)
-    form = forms.BudgetPlanSectionForm(request.POST or None, instance=section)
+    form = forms.BudgetPlanSectionForm(
+        request.POST or None, instance=section, plan=section.plan,
+    )
     if request.method == "POST" and form.is_valid():
         section = form.save(commit=False)
         section.updated_by = request.user
@@ -955,21 +959,10 @@ def plan_summary_output(request, pk):
 def plan_analytical_accounts(request):
     from apps.reference.models import Account
     main_id = request.GET.get("main_account")
-    rows = Account.objects.none()
+    rows = Account.objects.operational().filter(account_type="expense")
     if main_id and main_id.isdigit():
-        candidates = list(Account.objects.filter(
-            account_type="expense", is_active=True,
-        ).select_related("parent").order_by("code"))
-        descendants = []
-        target_id = int(main_id)
-        for account in candidates:
-            node = account.parent
-            while node is not None:
-                if node.pk == target_id:
-                    descendants.append(account.pk)
-                    break
-                node = node.parent
-        rows = Account.objects.filter(pk__in=descendants).order_by("code")
+        rows = rows.exclude(pk=int(main_id))
+    rows = rows.order_by("code")
     return JsonResponse({"results": [
         {"id": row.pk, "text": str(row)} for row in rows
     ]})

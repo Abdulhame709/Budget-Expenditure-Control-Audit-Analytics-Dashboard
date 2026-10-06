@@ -2,8 +2,11 @@
 {% block title %}قسم نموذج الموازنة{% endblock %}
 {% block content %}
 <h1 class="h3 mb-3">{% if section %}تعديل القسم{% else %}إضافة قسم{% endif %} — {{ plan.name }}</h1>
+<div class="alert alert-info py-2">
+  اختر الإدارة أو القسم من الهيكل التنظيمي. سيتم ربط البنود والموظفين بهذا السجل تلقائيًا، وأي تعديل على اسم الجهة أو حالتها يظهر عبر جميع الوحدات المرتبطة.
+</div>
 <form method="post" class="card border-0 shadow-sm"><div class="card-body">{% csrf_token %}
-  {% for field in form %}<div class="mb-3"><label class="form-label">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}
+  {% for field in form %}<div class="mb-3"><label class="form-label">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}
   <button class="btn btn-primary" type="submit">حفظ</button> <a class="btn btn-outline-secondary" href="{% url 'budget:plan_detail' plan.pk %}">إلغاء</a>
 </div></form>
 {% endblock %}

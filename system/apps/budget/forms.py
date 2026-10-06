@@ -55,19 +55,38 @@ class BudgetPlanForm(forms.ModelForm):
 class BudgetPlanSectionForm(forms.ModelForm):
     class Meta:
         model = BudgetPlanSection
-        fields = ["name", "description", "position", "default_main_account"]
+        fields = ["department", "name", "description", "position", "default_main_account"]
         widgets = {
+            "department": forms.Select(attrs={"class": "form-select"}),
             "name": forms.TextInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
             "position": forms.NumberInput(attrs={"class": "form-control", "min": 1}),
             "default_main_account": forms.Select(attrs={"class": "form-select"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, plan=None, **kwargs):
+        self.plan = plan or getattr(kwargs.get("instance"), "plan", None)
         super().__init__(*args, **kwargs)
+        if self.plan:
+            self.instance.plan = self.plan
+        self.fields["department"].queryset = Department.objects.filter(
+            is_active=True,
+        ).select_related("parent").order_by("code")
+        self.fields["department"].required = True
+        self.fields["department"].empty_label = "— اختر من الهيكل التنظيمي —"
+        self.fields["name"].required = False
+        self.fields["name"].help_text = "اختياري؛ عند تركه فارغًا يُستخدم اسم الإدارة/القسم التنظيمي."
         self.fields["default_main_account"].queryset = Account.objects.operational().filter(
             account_type="expense",
         ).order_by("code")
+
+    def clean(self):
+        cleaned = super().clean()
+        department = cleaned.get("department")
+        if department and not (cleaned.get("name") or "").strip():
+            cleaned["name"] = department.name
+            self.instance.name = department.name
+        return cleaned
 
 
 class BudgetPlanLineForm(forms.ModelForm):
@@ -128,8 +147,18 @@ class BudgetPlanLineForm(forms.ModelForm):
         ).order_by("code")
         self.fields["main_account"].queryset = expense_accounts
         self.fields["analytical_account"].queryset = expense_accounts
-        self.fields["department"].queryset = Department.objects.filter(is_active=True).order_by("code")
-        self.fields["employee"].queryset = Employee.objects.filter(is_active=True).order_by("code")
+        departments = Department.objects.filter(is_active=True).order_by("code")
+        employees = Employee.objects.filter(is_active=True).order_by("code")
+        if self.section and self.section.department_id:
+            departments = departments.filter(pk=self.section.department_id)
+            employees = employees.filter(department_id=self.section.department_id)
+            self.fields["department"].initial = self.section.department_id
+            self.fields["department"].disabled = True
+            self.fields["department"].help_text = (
+                "موروثة تلقائيًا من قسم نموذج الموازنة المرتبط بالهيكل التنظيمي."
+            )
+        self.fields["department"].queryset = departments
+        self.fields["employee"].queryset = employees
         if self.section:
             self.fields["parent"].queryset = self.section.lines.exclude(
                 pk=getattr(self.instance, "pk", None)

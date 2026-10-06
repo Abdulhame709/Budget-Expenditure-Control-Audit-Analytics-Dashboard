@@ -107,7 +107,7 @@ if _migration_flag == "true":
         raise ImproperlyConfigured(
             "DJANGO_USE_MIGRATION_DATABASE=true requires MIGRATION_DATABASE_URL."
         )
-elif LOCAL_DATA_SOURCE == "cloud":
+elif DEPLOYMENT_ENV == "development" and LOCAL_DATA_SOURCE == "cloud":
     DATABASE_URL = SUPABASE_DATABASE_URL
     if not DATABASE_URL:
         raise ImproperlyConfigured(

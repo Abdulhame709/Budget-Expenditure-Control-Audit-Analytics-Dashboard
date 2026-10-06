@@ -9,7 +9,7 @@ from pathlib import Path
 from django.conf import settings
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from config.csv_safety import safe_spreadsheet_value
@@ -64,6 +64,41 @@ class HealthEndpointTests(TestCase):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 302)
             self.assertIn(reverse("accounts:login"), response.url)
+
+
+class ProductionDatabaseSelectionTests(SimpleTestCase):
+    def test_production_uses_runtime_database_url_for_supabase(self):
+        env = os.environ.copy()
+        env.update({
+            "DJANGO_SETTINGS_MODULE": "config.settings.production",
+            "DJANGO_ENV": "production",
+            "DJANGO_SECRET_KEY": secrets.token_urlsafe(50),
+            "DATABASE_URL": (
+                "postgresql://audit:pass@aws-0-example.pooler.supabase.com/audit"
+            ),
+            "VERCEL": "1",
+            "VERCEL_URL": "audit.example.vercel.app",
+        })
+        env.pop("SUPABASE_DATABASE_URL", None)
+        system_dir = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import django; django.setup(); "
+                    "from django.conf import settings; "
+                    "print(settings.DATABASES['default']['HOST'])"
+                ),
+            ],
+            cwd=system_dir,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("aws-0-example.pooler.supabase.com", result.stdout)
 
 
 class ProductionConfigTests(TestCase):

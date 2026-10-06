@@ -170,7 +170,11 @@ class BudgetLine(TimeStampedModel):
     )
     account = models.ForeignKey(
         Account, on_delete=models.PROTECT, related_name="budget_lines",
-        verbose_name="الحساب",
+        verbose_name="الحساب الرئيسي",
+    )
+    analytical_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="analytical_budget_lines", verbose_name="الحساب التحليلي",
     )
     expense_category = models.ForeignKey(
         ExpenseCategory, on_delete=models.PROTECT, null=True, blank=True,
@@ -203,7 +207,13 @@ class BudgetLine(TimeStampedModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["version", "department", "account"],
-                name="uq_budget_line",
+                condition=Q(analytical_account__isnull=True),
+                name="uq_budget_line_main_only",
+            ),
+            models.UniqueConstraint(
+                fields=["version", "department", "account", "analytical_account"],
+                condition=Q(analytical_account__isnull=False),
+                name="uq_budget_line_with_analytical",
             ),
             models.CheckConstraint(
                 condition=Q(
@@ -239,6 +249,18 @@ class BudgetLine(TimeStampedModel):
             )
         elif self.account_id and not self.account.is_operational:
             errors["account"] = "يجب اختيار حساب نشط من المستوى الخامس."
+        if self.analytical_account_id:
+            if (
+                not self.analytical_account.is_analytical_account
+                or self.analytical_account.account_type != "expense"
+            ):
+                errors["analytical_account"] = (
+                    "يجب اختيار حساب مصروف تحليلي نشط من المستوى السادس."
+                )
+            elif self.analytical_account.parent_id != self.account_id:
+                errors["analytical_account"] = (
+                    "الحساب التحليلي يجب أن يكون تابعًا للحساب الرئيسي المحدد."
+                )
         # negative months (bypassing field validators)
         for fname in MONTH_FIELDS:
             value = getattr(self, fname, None)
@@ -507,12 +529,23 @@ class BudgetPlanLine(TimeStampedModel):
                 break
             seen.add(node.pk)
             node = node.parent
-        for field_name in ("main_account", "analytical_account"):
-            account = getattr(self, field_name)
-            if account and (
-                not account.is_active or account.account_type != "expense" or account.level != 5
+        if self.main_account and (
+            not self.main_account.is_main_account
+            or self.main_account.account_type != "expense"
+        ):
+            errors["main_account"] = "يجب اختيار حساب مصروف نشط من المستوى الخامس."
+        if self.analytical_account:
+            if (
+                not self.analytical_account.is_analytical_account
+                or self.analytical_account.account_type != "expense"
             ):
-                errors[field_name] = "يجب اختيار حساب مصروف نشط من المستوى الخامس."
+                errors["analytical_account"] = (
+                    "يجب اختيار حساب مصروف تحليلي نشط من المستوى السادس."
+                )
+            elif self.analytical_account.parent_id != self.main_account_id:
+                errors["analytical_account"] = (
+                    "الحساب التحليلي يجب أن يكون تابعًا للحساب الرئيسي المحدد."
+                )
         if self.employee and self.department and self.employee.department_id != self.department_id:
             errors["employee"] = "الموظف المختار لا يتبع الإدارة المحددة."
         if self.single_month is not None and not 1 <= self.single_month <= 12:

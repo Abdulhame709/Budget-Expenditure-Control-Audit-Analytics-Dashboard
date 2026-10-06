@@ -393,7 +393,20 @@ def default_account_currencies():
 class AccountQuerySet(models.QuerySet):
     def operational(self):
         """الحسابات المسموح باستخدامها في الحركات وبقية وحدات النظام."""
+        return self.main_accounts()
+
+    def main_accounts(self):
+        """الحسابات الرئيسية التشغيلية في المستوى الخامس."""
         return self.filter(level=5, is_active=True)
+
+    def analytical_accounts(self):
+        """الحسابات التحليلية التشغيلية في المستوى السادس."""
+        return self.filter(level=6, is_active=True)
+
+    def analytical_for(self, main_account):
+        """الحسابات التحليلية التابعة مباشرة لحساب رئيسي محدد."""
+        main_id = getattr(main_account, "pk", main_account)
+        return self.analytical_accounts().filter(parent_id=main_id)
 
 
 class Account(TimeStampedModel):
@@ -468,6 +481,14 @@ class Account(TimeStampedModel):
     @property
     def is_operational(self) -> bool:
         return self.level == 5 and self.is_active
+
+    @property
+    def is_main_account(self) -> bool:
+        return self.level == 5 and self.is_active
+
+    @property
+    def is_analytical_account(self) -> bool:
+        return self.level == 6 and self.is_active
 
     @property
     def currencies_display(self) -> str:

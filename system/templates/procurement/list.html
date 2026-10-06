@@ -65,11 +65,20 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small mb-1" for="f_account">الحساب</label>
+        <label class="form-label small mb-1" for="f_account">الحساب الرئيسي</label>
         <select id="f_account" name="account" class="form-select form-select-sm">
           <option value="">الكل</option>
           {% for a in filter_options.accounts %}
           <option value="{{ a.pk }}" {% if sel.account == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.code }} — {{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1" for="f_analytical_account">الحساب التحليلي</label>
+        <select id="f_analytical_account" name="analytical_account" class="form-select form-select-sm">
+          <option value="">الكل</option>
+          {% for a in filter_options.analytical_accounts %}
+          <option value="{{ a.pk }}" {% if sel.analytical_account == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.code }} — {{ a.name }}</option>
           {% endfor %}
         </select>
       </div>
@@ -90,7 +99,7 @@
       <thead class="table-light">
         <tr>
           <th>رقم السجل</th><th>التاريخ</th><th>الإدارة</th><th>المورّد</th>
-          <th>الحساب</th><th>البيان</th><th class="text-end">المبلغ</th>
+          <th>الحساب الرئيسي</th><th>الحساب التحليلي</th><th>البيان</th><th class="text-end">المبلغ</th>
           <th>PO</th><th>اعتماد</th><th>عروض</th><th>الحالة</th><th></th>
         </tr>
       </thead>
@@ -102,6 +111,7 @@
           <td>{{ p.department.code }}</td>
           <td class="small">{{ p.supplier.name|truncatechars:22 }}</td>
           <td class="small"><span dir="ltr">{{ p.account.code }}</span></td>
+          <td class="small">{% if p.analytical_account %}<span dir="ltr">{{ p.analytical_account.code }}</span>{% else %}—{% endif %}</td>
           <td class="small">{{ p.description|truncatechars:26 }}</td>
           <td class="text-end font-monospace" dir="ltr">{{ p.amount }}</td>
           <td>{% if p.purchase_order %}<span class="badge text-bg-success">موجود</span>
@@ -114,7 +124,7 @@
           <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'procurement:detail' p.pk %}">تفاصيل</a></td>
         </tr>
         {% empty %}
-        <tr><td colspan="12" class="text-center text-muted py-4">لا سجلات مطابقة.</td></tr>
+        <tr><td colspan="13" class="text-center text-muted py-4">لا سجلات مطابقة.</td></tr>
         {% endfor %}
       </tbody>
       {% if rows %}

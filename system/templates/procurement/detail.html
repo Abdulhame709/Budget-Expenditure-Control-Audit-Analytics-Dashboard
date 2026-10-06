@@ -42,7 +42,8 @@
             <tr><th>المورّد</th><td>{{ p.supplier }}<div class="small text-muted">
               {% if p.supplier.tax_number %}ضريبي: <span dir="ltr">{{ p.supplier.tax_number }}</span> · {% endif %}
               {% if p.supplier.phone %}هاتف: <span dir="ltr">{{ p.supplier.phone }}</span>{% endif %}</div></td></tr>
-            <tr><th>الحساب (COA)</th><td>{{ p.account }}</td></tr>
+            <tr><th>الحساب الرئيسي (المستوى 5)</th><td>{{ p.account }}</td></tr>
+            <tr><th>الحساب التحليلي (المستوى 6)</th><td>{{ p.analytical_account|default:"—" }}</td></tr>
             <tr><th>التصنيف</th><td>{{ p.expense_category|default:"—" }}</td></tr>
             <tr><th>البيان</th><td>{{ p.description|linebreaksbr }}</td></tr>
             <tr><th>المبلغ</th><td class="fs-5 fw-bold font-monospace" dir="ltr">{{ p.amount }}</td></tr>

@@ -88,21 +88,29 @@ def monthly_budget_map(version: BudgetVersion) -> dict:
     return result
 
 
-def is_budgeted(version: BudgetVersion, department, account) -> bool:
+def is_budgeted(
+    version: BudgetVersion, department, account, analytical_account=None,
+) -> bool:
     """OUT-OF-BUDGET FOUNDATION: does this (dept, account) have budget
     coverage in the analysis version? An expense without coverage is an
     out-of-budget candidate (actual check happens in a later phase)."""
-    return version.lines.filter(
-        department=department, account=account
-    ).exists()
+    rows = version.lines.filter(department=department, account=account)
+    if analytical_account is not None:
+        rows = rows.filter(analytical_account=analytical_account)
+    return rows.exists()
 
 
-def line_for(version: BudgetVersion, department, account) -> BudgetLine | None:
-    """Exact budget line for a (dept, account) pair — used by future
-    Budget-vs-Actual/Variance computations at line level."""
-    return version.lines.filter(
-        department=department, account=account
-    ).first()
+def line_for(
+    version: BudgetVersion, department, account, analytical_account=None,
+) -> BudgetLine | None:
+    """Exact budget line for department + main account + analytical account."""
+    rows = version.lines.filter(department=department, account=account)
+    if analytical_account is not None:
+        exact = rows.filter(analytical_account=analytical_account).first()
+        if exact is not None:
+            return exact
+        return rows.filter(analytical_account__isnull=True).first()
+    return rows.first()
 
 
 CENT = Decimal("0.01")

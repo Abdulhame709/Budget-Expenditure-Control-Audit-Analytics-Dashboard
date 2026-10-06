@@ -19,7 +19,8 @@ class ExpenseForm(forms.ModelForm):
         model = Expense
         fields = [
             "expense_number", "expense_date", "period", "department", "account",
-            "expense_category", "supplier", "description", "amount", "currency",
+            "analytical_account", "expense_category", "supplier", "description",
+            "amount", "currency",
             "payment_method", "payment_reference", "invoice_reference",
             "attachment", "approval_reference",
         ]
@@ -31,6 +32,7 @@ class ExpenseForm(forms.ModelForm):
             "period": forms.Select(attrs={"class": "form-select"}),
             "department": forms.Select(attrs={"class": "form-select"}),
             "account": forms.Select(attrs={"class": "form-select"}),
+            "analytical_account": forms.Select(attrs={"class": "form-select"}),
             "expense_category": forms.Select(attrs={"class": "form-select"}),
             "supplier": forms.Select(attrs={"class": "form-select"}),
             "description": forms.Textarea(
@@ -59,9 +61,22 @@ class ExpenseForm(forms.ModelForm):
         # active dimensions only
         self.fields["department"].queryset = Department.objects.filter(is_active=True)
         self.fields["department"].empty_label = "— اختر الإدارة —"
-        self.fields["account"].queryset = Account.objects.operational().filter(
+        self.fields["account"].queryset = Account.objects.main_accounts().filter(
             account_type="expense")
-        self.fields["account"].empty_label = "— اختر حساب المصروف —"
+        self.fields["account"].label = "الحساب الرئيسي (المستوى 5)"
+        self.fields["account"].empty_label = "— اختر الحساب الرئيسي —"
+        main_id = (
+            self.data.get("account")
+            if self.is_bound else getattr(self.instance, "account_id", None)
+        )
+        analytical_accounts = Account.objects.none()
+        if str(main_id or "").isdigit():
+            analytical_accounts = Account.objects.analytical_for(main_id).filter(
+                account_type="expense",
+            ).order_by("code")
+        self.fields["analytical_account"].queryset = analytical_accounts
+        self.fields["analytical_account"].label = "الحساب التحليلي (المستوى 6)"
+        self.fields["analytical_account"].empty_label = "— اختر حسابًا تابعًا للرئيسي —"
         self.fields["expense_category"].queryset = ExpenseCategory.objects.filter(
             is_active=True)
         self.fields["expense_category"].required = False

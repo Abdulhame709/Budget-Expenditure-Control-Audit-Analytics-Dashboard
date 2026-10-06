@@ -140,6 +140,7 @@ for _slug in ("currency", "fiscal_year", "period", "department", "employee", "ac
     URL_PERMISSIONS[f"reference:{_slug}_delete"] = "reference.edit"
 URL_PERMISSIONS["reference:period_set_status"] = "reference.edit"
 URL_PERMISSIONS["reference:organization_settings"] = "settings.manage"
+URL_PERMISSIONS["reference:analytical_accounts"] = "reference.view"
 del _slug
 
 # PHASE 5 — budget pages

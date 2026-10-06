@@ -68,6 +68,17 @@ class BaseFixture(TestCase):
         cls.acc = Account.objects.create(
             code="5101", name="مصروفات تنقّل", account_type="expense",
             expense_category=cls.cat)
+        cls.analytical_acc = Account.objects.create(
+            code="510101", name="تنقّل داخلي", account_type="expense",
+            level=6, ledger_type="sub", parent=cls.acc,
+            expense_category=cls.cat,
+        )
+        cls.other_main_acc = Account.objects.create(
+            code="5201", name="مصروفات أخرى", account_type="expense")
+        cls.other_analytical_acc = Account.objects.create(
+            code="520101", name="تحليلي آخر", account_type="expense",
+            level=6, ledger_type="sub", parent=cls.other_main_acc,
+        )
         cls.acc_asset = Account.objects.create(
             code="1100", name="نقدية", account_type="asset")
         cls.acc_dead = Account.objects.create(
@@ -115,6 +126,14 @@ def payload(**over):
 
 # ================================================================ validation
 class ExpenseValidationTests(BaseFixture):
+    def test_analytical_account_must_be_level_six_child_of_main(self):
+        valid = self._expense(analytical_account=self.analytical_acc)
+        valid.full_clean()
+        invalid = self._expense(analytical_account=self.other_analytical_acc)
+        with self.assertRaises(ValidationError) as ctx:
+            invalid.full_clean()
+        self.assertIn("analytical_account", ctx.exception.error_dict)
+
     def _expense(self, **kw):
         defaults = dict(
             expense_number="EXP-2026-90001", expense_date=date(2026, 1, 15),

@@ -18,7 +18,7 @@ class ProcurementForm(forms.ModelForm):
         model = Procurement
         fields = [
             "reference_number", "date", "department", "supplier", "account",
-            "expense_category", "description", "amount", "status",
+            "analytical_account", "expense_category", "description", "amount", "status",
             "purchase_order", "approval_reference", "payment_method",
             "payment_reference", "attachment", "notes",
         ]
@@ -30,6 +30,7 @@ class ProcurementForm(forms.ModelForm):
             "department": forms.Select(attrs={"class": "form-select"}),
             "supplier": forms.Select(attrs={"class": "form-select"}),
             "account": forms.Select(attrs={"class": "form-select"}),
+            "analytical_account": forms.Select(attrs={"class": "form-select"}),
             "expense_category": forms.Select(attrs={"class": "form-select"}),
             "description": forms.Textarea(
                 attrs={"class": "form-control", "rows": 3}),
@@ -57,9 +58,22 @@ class ProcurementForm(forms.ModelForm):
         self.fields["department"].empty_label = "— اختر الإدارة —"
         self.fields["supplier"].queryset = Supplier.objects.filter(is_active=True)
         self.fields["supplier"].empty_label = "— اختر المورّد —"
-        self.fields["account"].queryset = Account.objects.operational().filter(
+        self.fields["account"].queryset = Account.objects.main_accounts().filter(
             account_type="expense")
-        self.fields["account"].empty_label = "— اختر الحساب —"
+        self.fields["account"].label = "الحساب الرئيسي (المستوى 5)"
+        self.fields["account"].empty_label = "— اختر الحساب الرئيسي —"
+        main_id = (
+            self.data.get("account")
+            if self.is_bound else getattr(self.instance, "account_id", None)
+        )
+        analytical_accounts = Account.objects.none()
+        if str(main_id or "").isdigit():
+            analytical_accounts = Account.objects.analytical_for(main_id).filter(
+                account_type="expense",
+            ).order_by("code")
+        self.fields["analytical_account"].queryset = analytical_accounts
+        self.fields["analytical_account"].label = "الحساب التحليلي (المستوى 6)"
+        self.fields["analytical_account"].empty_label = "— اختر حسابًا تابعًا للرئيسي —"
         self.fields["expense_category"].queryset = ExpenseCategory.objects.filter(
             is_active=True)
         self.fields["expense_category"].required = False
@@ -69,8 +83,9 @@ class ProcurementForm(forms.ModelForm):
         self.fields["amount"].validators = [
             MinValueValidator(0.01, message="المبلغ يجب أن يكون موجبًا وأكبر من صفر.")
         ]
-        for name in ("amount", "date", "department", "supplier", "account",
-                     "description"):
+        for name in (
+            "amount", "date", "department", "supplier", "account", "description",
+        ):
             self.fields[name].error_messages["required"] = "هذا الحقل مطلوب."
 
     def clean_reference_number(self):

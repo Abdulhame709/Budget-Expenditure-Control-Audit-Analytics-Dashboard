@@ -38,10 +38,15 @@ class BudgetPlanFixture(TestCase):
         )
         self.analytical_account = Account.objects.create(
             code="5101", name="تكلفة مطبوعات التذاكر",
-            account_type="expense", parent=self.main_account,
+            account_type="expense", level=6, ledger_type="sub",
+            parent=self.main_account,
+        )
+        self.other_main_account = Account.objects.create(
+            code="5200", name="حساب رئيسي آخر", account_type="expense",
         )
         self.other_account = Account.objects.create(
             code="5201", name="حساب تحليلي آخر", account_type="expense",
+            level=6, ledger_type="sub", parent=self.other_main_account,
         )
         self.plan = BudgetPlan.objects.create(
             name="الموازنة التفصيلية", fiscal_year=self.fiscal_year,
@@ -292,7 +297,7 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
             {"main_account": self.main_account.pk},
         )
         ids = {item["id"] for item in response.json()["results"]}
-        self.assertEqual(ids, {self.analytical_account.pk, self.other_account.pk})
+        self.assertEqual(ids, {self.analytical_account.pk})
         response = client.get(
             reverse("budget:plan_department_employees"),
             {"department": self.finance.pk},

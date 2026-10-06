@@ -26,7 +26,7 @@ from .models import Procurement, Quotation
 
 RECORD_FIELDS = [
     "reference_number", "date", "department", "supplier", "account",
-    "expense_category", "description", "amount", "status", "purchase_order",
+    "analytical_account", "expense_category", "description", "amount", "status", "purchase_order",
     "approval_reference", "approved_by", "approved_at", "payment_method",
     "payment_reference", "attachment", "notes",
 ]
@@ -36,7 +36,8 @@ QUOTE_FIELDS = ["supplier", "amount", "offer_date", "reference", "notes"]
 # ---------------------------------------------------------------- shared
 def _filtered(request):
     qs = Procurement.objects.select_related(
-        "department", "supplier", "account", "expense_category", "created_by")
+        "department", "supplier", "account", "analytical_account",
+        "expense_category", "created_by")
     q = (request.GET.get("q") or "").strip()
     if q:
         qs = qs.filter(
@@ -54,6 +55,7 @@ def _filtered(request):
     for param, lookup in (("department", "department_id"),
                           ("supplier", "supplier_id"),
                           ("account", "account_id"),
+                          ("analytical_account", "analytical_account_id"),
                           ("category", "expense_category_id")):
         raw = (request.GET.get(param) or "").strip()
         if raw.isdigit():
@@ -85,13 +87,16 @@ def _filter_context(request) -> dict:
         "filter_options": {
             "departments": Department.objects.filter(is_active=True),
             "suppliers": Supplier.objects.filter(is_active=True),
-            "accounts": Account.objects.filter(account_type="expense"),
+            "accounts": Account.objects.main_accounts().filter(account_type="expense"),
+            "analytical_accounts": Account.objects.analytical_accounts().filter(
+                account_type="expense",
+            ),
             "categories": ExpenseCategory.objects.filter(is_active=True),
             "statuses": Procurement.STATUS_CHOICES,
             "yesno": [("", "الكل"), ("yes", "موجود"), ("no", "غائب")],
         },
         "sel": {k: (request.GET.get(k) or "")
-                for k in ("status", "department", "supplier", "account",
+                for k in ("status", "department", "supplier", "account", "analytical_account",
                           "category", "has_po", "has_approval",
                           "date_from", "date_to")},
     }
@@ -161,7 +166,7 @@ def _apply_approval(record, ref, original_ref, user):
 
 def procurement_detail(request, pk):
     record = get_object_or_404(Procurement.objects.select_related(
-        "department", "supplier", "account", "expense_category",
+        "department", "supplier", "account", "analytical_account", "expense_category",
         "created_by", "updated_by", "approved_by"), pk=pk)
     audit_ctx = services.procurement_audit_context(record)
     quotes = list(record.quotations.select_related("supplier"))

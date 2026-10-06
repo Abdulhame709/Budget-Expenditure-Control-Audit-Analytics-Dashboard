@@ -79,6 +79,7 @@ class BudgetPlanSectionForm(forms.ModelForm):
         self.fields["default_main_account"].queryset = Account.objects.operational().filter(
             account_type="expense",
         ).order_by("code")
+        self.fields["default_main_account"].label = "الحساب الرئيسي الافتراضي (المستوى 5)"
 
     def clean(self):
         cleaned = super().clean()
@@ -142,11 +143,23 @@ class BudgetPlanLineForm(forms.ModelForm):
     def __init__(self, *args, section=None, **kwargs):
         self.section = section or getattr(kwargs.get("instance"), "section", None)
         super().__init__(*args, **kwargs)
-        expense_accounts = Account.objects.operational().filter(
+        main_accounts = Account.objects.main_accounts().filter(
             account_type="expense",
         ).order_by("code")
-        self.fields["main_account"].queryset = expense_accounts
-        self.fields["analytical_account"].queryset = expense_accounts
+        self.fields["main_account"].queryset = main_accounts
+        self.fields["main_account"].label = "الحساب الرئيسي (المستوى 5)"
+        main_id = (
+            self.data.get("main_account")
+            if self.is_bound else getattr(self.instance, "main_account_id", None)
+        )
+        analytical_accounts = Account.objects.none()
+        if str(main_id or "").isdigit():
+            analytical_accounts = Account.objects.analytical_for(main_id).filter(
+                account_type="expense",
+            ).order_by("code")
+        self.fields["analytical_account"].queryset = analytical_accounts
+        self.fields["analytical_account"].label = "الحساب التحليلي (المستوى 6)"
+        self.fields["analytical_account"].empty_label = "— اختر حسابًا تابعًا للرئيسي —"
         departments = Department.objects.filter(is_active=True).order_by("code")
         employees = Employee.objects.filter(is_active=True).order_by("code")
         if self.section and self.section.department_id:
@@ -245,10 +258,14 @@ class BudgetVersionForm(forms.ModelForm):
 class BudgetLineForm(forms.ModelForm):
     class Meta:
         model = BudgetLine
-        fields = ["department", "account", "expense_category", *MONTH_FIELDS, "notes"]
+        fields = [
+            "department", "account", "analytical_account", "expense_category",
+            *MONTH_FIELDS, "notes",
+        ]
         widgets = {
             "department": forms.Select(attrs={"class": "form-select"}),
             "account": forms.Select(attrs={"class": "form-select"}),
+            "analytical_account": forms.Select(attrs={"class": "form-select"}),
             "expense_category": forms.Select(attrs={"class": "form-select"}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
@@ -257,10 +274,23 @@ class BudgetLineForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["department"].queryset = Department.objects.filter(is_active=True)
         self.fields["department"].empty_label = "— اختر الإدارة —"
-        self.fields["account"].queryset = Account.objects.operational().filter(
+        self.fields["account"].queryset = Account.objects.main_accounts().filter(
             account_type="expense"
         )
-        self.fields["account"].empty_label = "— اختر حساب المصروف —"
+        self.fields["account"].label = "الحساب الرئيسي (المستوى 5)"
+        self.fields["account"].empty_label = "— اختر الحساب الرئيسي —"
+        main_id = (
+            self.data.get("account")
+            if self.is_bound else getattr(self.instance, "account_id", None)
+        )
+        analytical_accounts = Account.objects.none()
+        if str(main_id or "").isdigit():
+            analytical_accounts = Account.objects.analytical_for(main_id).filter(
+                account_type="expense",
+            ).order_by("code")
+        self.fields["analytical_account"].queryset = analytical_accounts
+        self.fields["analytical_account"].label = "الحساب التحليلي (المستوى 6)"
+        self.fields["analytical_account"].empty_label = "— اختر حسابًا تابعًا للرئيسي —"
         self.fields["expense_category"].queryset = ExpenseCategory.objects.filter(
             is_active=True
         )

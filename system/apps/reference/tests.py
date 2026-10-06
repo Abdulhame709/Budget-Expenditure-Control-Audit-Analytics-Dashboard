@@ -155,6 +155,20 @@ class DepartmentRelationTests(TestCase):
 
 
 class AccountRelationTests(TestCase):
+    def test_main_and_analytical_querysets_follow_levels(self):
+        main = Account.objects.create(
+            code="5100", name="مصروف رئيسي", account_type="expense",
+            level=5, ledger_type="main",
+        )
+        analytical = Account.objects.create(
+            code="510001", name="مصروف تحليلي", account_type="expense",
+            level=6, ledger_type="sub", parent=main,
+        )
+        self.assertQuerySetEqual(Account.objects.main_accounts(), [main])
+        self.assertQuerySetEqual(
+            Account.objects.analytical_for(main), [analytical],
+        )
+
     def test_expense_category_only_on_expense_accounts(self):
         cat = ExpenseCategory.objects.create(code="TRAVEL", name="تنقلات")
         acc = Account(code="1101", name="صندوق", account_type="asset",

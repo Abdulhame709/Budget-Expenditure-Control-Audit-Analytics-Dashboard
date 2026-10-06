@@ -29,6 +29,7 @@
         {% endfor %}
       </div>
       <div class="alert alert-light border small">
+        الحساب الرئيسي من المستوى 5، والحساب التحليلي من المستوى 6 ويتبع الحساب الرئيسي المحدد.<br>
         الميزانية السنوية تُحسب تلقائيًا = مجموع الأشهر الـ 12 (تُخزَّن في قاعدة
         البيانات وتُفحص بقيد CHECK) — لا تُكتب يدويًا.
       </div>
@@ -39,4 +40,19 @@
     </form>
   </div>
 </div>
+<script>
+(function(){
+  const main=document.getElementById('id_account');
+  const analytical=document.getElementById('id_analytical_account');
+  async function refill(){
+    const current=analytical.value;
+    const response=await fetch(`{% url 'reference:analytical_accounts' %}?main_account=${main.value}`);
+    const data=await response.json();
+    analytical.innerHTML='<option value="">— اختر حسابًا تابعًا للرئيسي —</option>';
+    data.results.forEach(item=>analytical.add(new Option(item.text,item.id)));
+    if([...analytical.options].some(option=>option.value===current)) analytical.value=current;
+  }
+  main?.addEventListener('change',refill);
+})();
+</script>
 {% endblock %}

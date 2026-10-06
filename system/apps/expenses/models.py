@@ -52,7 +52,11 @@ class Expense(models.Model):
     )
     account = models.ForeignKey(
         Account, on_delete=models.PROTECT, related_name="expenses",
-        verbose_name="الحساب",
+        verbose_name="الحساب الرئيسي",
+    )
+    analytical_account = models.ForeignKey(
+        Account, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="analytical_expenses", verbose_name="الحساب التحليلي",
     )
     expense_category = models.ForeignKey(
         ExpenseCategory, on_delete=models.PROTECT, null=True, blank=True,
@@ -160,6 +164,19 @@ class Expense(models.Model):
                 errors["account"] = "الحساب المحدد غير نشط (معطّل)."
             elif self.account.level != 5:
                 errors["account"] = "يجب اختيار حساب من المستوى الخامس."
+        if self.analytical_account_id:
+            if (
+                self.analytical_account.account_type != "expense"
+                or not self.analytical_account.is_active
+                or self.analytical_account.level != 6
+            ):
+                errors["analytical_account"] = (
+                    "يجب اختيار حساب مصروف تحليلي نشط من المستوى السادس."
+                )
+            elif self.analytical_account.parent_id != self.account_id:
+                errors["analytical_account"] = (
+                    "الحساب التحليلي يجب أن يكون تابعًا للحساب الرئيسي المحدد."
+                )
         # department must be active
         if self.department_id and not self.department.is_active:
             errors["department"] = "الإدارة المحددة غير نشطة (معطّل)."
@@ -168,7 +185,11 @@ class Expense(models.Model):
             errors["supplier"] = "المورّد المحدد غير نشط (معطّل)."
         # category inherits from the account when blank (same rule as budget lines)
         if not self.expense_category_id and self.account_id:
-            self.expense_category = self.account.expense_category
+            self.expense_category = (
+                self.analytical_account.expense_category
+                if self.analytical_account_id and self.analytical_account.expense_category_id
+                else self.account.expense_category
+            )
         # duplicate control: identical posting rejected at model level
         if (
             self.expense_date and self.supplier_id and self.amount

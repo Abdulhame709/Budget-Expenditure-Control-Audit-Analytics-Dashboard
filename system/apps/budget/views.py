@@ -193,7 +193,7 @@ def budget_delete(request, pk):
 # ---------------------------------------------------------------- versions
 def _version_detail_context(request, version, *, grid_forms=None):
     lines = list(version.lines.select_related(
-        "department", "account", "expense_category"))
+        "department", "account", "analytical_account", "expense_category"))
     totals = services.version_totals(version)
     can_edit = has_perm(request.user, "budget.edit")
     locked = version.is_approved  # approved ⇒ lines locked
@@ -243,7 +243,7 @@ def version_grid_update(request, pk):
         BudgetVersion.objects.select_related("budget__fiscal_year"), pk=pk)
     _require_draft(version, "التعديل الشبكي")
     lines = list(version.lines.select_related(
-        "department", "account", "expense_category"))
+        "department", "account", "analytical_account", "expense_category"))
     if not lines:
         messages.info(request, "لا توجد سطور موازنة لتعديلها.")
         return redirect("budget:version_detail", pk=version.pk)
@@ -403,6 +403,7 @@ def version_new_revision(request, budget_pk):
         BudgetLine.objects.create(
             version=new_version, department_id=line.department_id,
             account_id=line.account_id,
+            analytical_account_id=line.analytical_account_id,
             expense_category_id=line.expense_category_id,
             **{f: getattr(line, f) for f in MONTH_FIELDS},
             annual_amount=line.annual_amount, notes=line.notes,
@@ -959,10 +960,11 @@ def plan_summary_output(request, pk):
 def plan_analytical_accounts(request):
     from apps.reference.models import Account
     main_id = request.GET.get("main_account")
-    rows = Account.objects.operational().filter(account_type="expense")
+    rows = Account.objects.none()
     if main_id and main_id.isdigit():
-        rows = rows.exclude(pk=int(main_id))
-    rows = rows.order_by("code")
+        rows = Account.objects.analytical_for(int(main_id)).filter(
+            account_type="expense",
+        ).order_by("code")
     return JsonResponse({"results": [
         {"id": row.pk, "text": str(row)} for row in rows
     ]})

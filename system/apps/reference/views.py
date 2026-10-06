@@ -17,8 +17,10 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.http import require_GET
 
 from apps.accounts.permissions import has_perm, require_permission
 from apps.governance.models import AuditLog
@@ -36,6 +38,20 @@ from .models import (
     Supplier,
 )
 from .services import changes_between, log_reference_action, snapshot
+
+
+@require_GET
+def analytical_accounts(request):
+    """Active level-6 expense accounts belonging to the selected level-5 account."""
+    main_id = request.GET.get("main_account")
+    rows = Account.objects.none()
+    if main_id and main_id.isdigit():
+        rows = Account.objects.analytical_for(int(main_id)).filter(
+            account_type="expense",
+        ).order_by("code")
+    return JsonResponse({"results": [
+        {"id": row.pk, "text": str(row)} for row in rows
+    ]})
 
 # ---------------------------------------------------------------- registry
 REFERENCE_MODULES: dict[str, dict] = {
@@ -467,10 +483,10 @@ def _related_groups(slug, obj):
         ])
     elif slug == "account":
         add_group("الاستخدام المالي", [
-            {"label": "بنود الموازنة الشهرية", "count": BudgetLine.objects.filter(account=obj).count(), "count_label": "بند"},
+            {"label": "بنود الموازنة الشهرية", "count": BudgetLine.objects.filter(Q(account=obj) | Q(analytical_account=obj)).count(), "count_label": "بند"},
             {"label": "بنود نماذج الموازنة", "count": BudgetPlanLine.objects.filter(Q(main_account=obj) | Q(analytical_account=obj)).count(), "count_label": "بند"},
-            {"label": "المصروفات", "count": Expense.objects.filter(account=obj).count(), "count_label": "سجل"},
-            {"label": "المشتريات", "count": Procurement.objects.filter(account=obj).count(), "count_label": "سجل"},
+            {"label": "المصروفات", "count": Expense.objects.filter(Q(account=obj) | Q(analytical_account=obj)).count(), "count_label": "سجل"},
+            {"label": "المشتريات", "count": Procurement.objects.filter(Q(account=obj) | Q(analytical_account=obj)).count(), "count_label": "سجل"},
         ])
     elif slug == "fiscal_year":
         add_group("الموازنات المرتبطة", [

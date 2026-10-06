@@ -68,7 +68,8 @@ def expense_budget_context(expense) -> dict:
                 "line": None, "budgeted": False, "monthly_budget": None,
                 "reason": "لا توجد نسخة ميزانية معتمدة بعد."}
     line = budget_services.line_for(
-        version, expense.department, expense.account)
+        version, expense.department, expense.account, expense.analytical_account,
+    )
     month_field = f"m{expense.expense_date.month:02d}"
     monthly = getattr(line, month_field) if line else None
     return {

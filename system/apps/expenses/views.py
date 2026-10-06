@@ -39,7 +39,7 @@ from .models import Expense
 
 APPROVAL_FIELDS = [
     "expense_number", "expense_date", "period", "department", "account",
-    "expense_category", "supplier", "description", "amount", "currency",
+    "analytical_account", "expense_category", "supplier", "description", "amount", "currency",
     "payment_method", "payment_reference", "invoice_reference",
     "approval_reference", "approved_by", "approved_at",
 ]
@@ -49,7 +49,7 @@ APPROVAL_FIELDS = [
 def _filtered(request):
     """Search + filters shared by list & export (one source of truth)."""
     qs = Expense.objects.select_related(
-        "period__fiscal_year", "department", "account",
+        "period__fiscal_year", "department", "account", "analytical_account",
         "expense_category", "supplier", "created_by")
     q = (request.GET.get("q") or "").strip()
     if q:
@@ -63,7 +63,8 @@ def _filtered(request):
         )
     for param, lookup in (
         ("period", "period_id"), ("department", "department_id"),
-        ("account", "account_id"), ("category", "expense_category_id"),
+        ("account", "account_id"), ("analytical_account", "analytical_account_id"),
+        ("category", "expense_category_id"),
         ("supplier", "supplier_id"), ("currency", "currency"),
     ):
         raw = (request.GET.get(param) or "").strip()
@@ -94,7 +95,10 @@ def _filter_context(request) -> dict:
         "filter_options": {
             "periods": MonthlyPeriod.objects.select_related("fiscal_year"),
             "departments": Department.objects.filter(is_active=True),
-            "accounts": Account.objects.filter(account_type="expense"),
+            "accounts": Account.objects.main_accounts().filter(account_type="expense"),
+            "analytical_accounts": Account.objects.analytical_accounts().filter(
+                account_type="expense",
+            ),
             "categories": ExpenseCategory.objects.filter(is_active=True),
             "suppliers": Supplier.objects.filter(is_active=True),
             "currencies": Expense.CURRENCY_CHOICES,
@@ -102,7 +106,7 @@ def _filter_context(request) -> dict:
                           ("approved", "معتمد")],
         },
         "sel": {k: (request.GET.get(k) or "")
-                for k in ("period", "department", "account", "category",
+                for k in ("period", "department", "account", "analytical_account", "category",
                           "supplier", "currency", "approval",
                           "date_from", "date_to")},
     }
@@ -218,7 +222,7 @@ def expense_edit(request, pk):
 # ---------------------------------------------------------------- detail + attachment
 def expense_detail(request, pk):
     expense = get_object_or_404(Expense.objects.select_related(
-        "period__fiscal_year", "department", "account", "expense_category",
+        "period__fiscal_year", "department", "account", "analytical_account", "expense_category",
         "supplier", "created_by", "updated_by", "approved_by"), pk=pk)
     budget_ctx = services.expense_budget_context(expense)
     audit_rows = []
@@ -259,7 +263,8 @@ def expense_attachment(request, pk):
 EXPORT_COLUMNS = [
     ("expense_number", "رقم المصروف"), ("expense_date", "التاريخ"),
     ("period", "الفترة"), ("department", "الإدارة"),
-    ("account", "الحساب"), ("expense_category", "التصنيف"),
+    ("account", "الحساب الرئيسي"), ("analytical_account", "الحساب التحليلي"),
+    ("expense_category", "التصنيف"),
     ("supplier", "المورّد"), ("description", "البيان"),
     ("amount", "المبلغ"), ("currency", "العملة"),
     ("payment_method", "طريقة الدفع"), ("payment_reference", "مرجع الدفع"),
@@ -283,6 +288,7 @@ def expense_export(request):
         values = [
             e.expense_number, e.expense_date.isoformat(), str(e.period),
             str(e.department), str(e.account),
+            str(e.analytical_account) if e.analytical_account_id else "",
             str(e.expense_category) if e.expense_category_id else "",
             str(e.supplier) if e.supplier_id else "",
             e.description, str(e.amount), e.currency,

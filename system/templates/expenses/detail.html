@@ -35,7 +35,8 @@
                     {% if e.period.is_closed %}<span class="badge text-bg-danger">مغلقة</span>
                     {% else %}<span class="badge text-bg-success">مفتوحة</span>{% endif %}</td></tr>
             <tr><th>الإدارة</th><td>{{ e.department }}</td></tr>
-            <tr><th>الحساب (COA)</th><td>{{ e.account }}</td></tr>
+            <tr><th>الحساب الرئيسي (المستوى 5)</th><td>{{ e.account }}</td></tr>
+            <tr><th>الحساب التحليلي (المستوى 6)</th><td>{{ e.analytical_account|default:"—" }}</td></tr>
             <tr><th>التصنيف</th><td>{{ e.expense_category|default:"—" }}</td></tr>
             <tr><th>المورّد</th><td>{{ e.supplier|default:"—" }}</td></tr>
             <tr><th>البيان</th><td>{{ e.description|linebreaksbr }}</td></tr>

@@ -53,6 +53,17 @@ class BaseFixture(TestCase):
         cls.acc = Account.objects.create(
             code="5102", name="مستلزمات مكتبية", account_type="expense",
             expense_category=cls.cat)
+        cls.analytical_acc = Account.objects.create(
+            code="510201", name="قرطاسية", account_type="expense",
+            level=6, ledger_type="sub", parent=cls.acc,
+            expense_category=cls.cat,
+        )
+        cls.other_main_acc = Account.objects.create(
+            code="5202", name="مصروفات أخرى", account_type="expense")
+        cls.other_analytical_acc = Account.objects.create(
+            code="520201", name="تحليلي آخر", account_type="expense",
+            level=6, ledger_type="sub", parent=cls.other_main_acc,
+        )
         cls.acc_asset = Account.objects.create(
             code="1100", name="نقدية", account_type="asset")
         cls.sup = Supplier.objects.create(code="SUP-01", name="مؤسسة الإمداد")
@@ -97,6 +108,24 @@ def payload(**over):
 
 # ================================================================ model validation
 class ProcurementValidationTests(BaseFixture):
+    def test_analytical_account_must_be_level_six_child_of_main(self):
+        valid = Procurement(
+            reference_number="PR-AN-1", date=date(2026, 2, 1),
+            department=self.dept, supplier=self.sup, account=self.acc,
+            analytical_account=self.analytical_acc,
+            description="x", amount=D_("100"),
+        )
+        valid.full_clean()
+        invalid = Procurement(
+            reference_number="PR-AN-2", date=date(2026, 2, 1),
+            department=self.dept, supplier=self.sup, account=self.acc,
+            analytical_account=self.other_analytical_acc,
+            description="x", amount=D_("100"),
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            invalid.full_clean()
+        self.assertIn("analytical_account", ctx.exception.error_dict)
+
     def test_amount_positive_model_and_db(self):
         p = Procurement(
             reference_number="PR-X1", date=date(2026, 2, 1),

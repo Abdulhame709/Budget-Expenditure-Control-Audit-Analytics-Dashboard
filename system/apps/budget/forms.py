@@ -18,6 +18,7 @@ from .models import (
     BudgetLine,
     BudgetPlan,
     BudgetPlanLine,
+    BudgetPlanSalaryComponent,
     BudgetPlanSection,
     BudgetTemplate,
     BudgetTemplateRow,
@@ -291,6 +292,13 @@ class BudgetPlanLineForm(forms.ModelForm):
         elif input_mode == BudgetPlanLine.INPUT_NONE:
             cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
             cleaned["annual_amount"] = 0
+        elif input_mode == BudgetPlanLine.INPUT_SALARY_COMPONENTS:
+            cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
+            cleaned["annual_amount"] = 0
+            if row_type != BudgetPlanLine.TYPE_DETAIL:
+                self.add_error("row_type", "مكونات الراتب تستخدم مع صف تفصيلي مرتبط بموظف.")
+            if not cleaned.get("employee"):
+                self.add_error("employee", "اختر الموظف المرتبط بمكونات الراتب.")
         if input_mode != BudgetPlanLine.INPUT_QUANTITY_PRICE:
             cleaned["quantity"] = 0
             cleaned["unit_price"] = 0
@@ -316,6 +324,61 @@ class BudgetPlanLineForm(forms.ModelForm):
         if distribution_method != BudgetPlanLine.DIST_SELECTED_MONTHS:
             cleaned["selected_months"] = []
         return cleaned
+
+
+class BudgetPlanSalaryComponentForm(forms.ModelForm):
+    class Meta:
+        model = BudgetPlanSalaryComponent
+        fields = [
+            "position", "name", "component_type", "calculation_method",
+            "amount", "percentage_rate", "start_month", "periods_count",
+            "payment_month", "is_percentage_base", "is_active",
+        ]
+        widgets = {
+            "position": forms.NumberInput(attrs={"class": "form-control form-control-sm", "min": 1}),
+            "name": forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+            "component_type": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "calculation_method": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "amount": AMOUNT_INPUT,
+            "percentage_rate": forms.NumberInput(attrs={"class": "form-control form-control-sm", "min": 0, "max": 100, "step": "0.0001"}),
+            "start_month": forms.NumberInput(attrs={"class": "form-control form-control-sm", "min": 1, "max": 12}),
+            "periods_count": forms.NumberInput(attrs={"class": "form-control form-control-sm", "min": 1, "max": 12}),
+            "payment_month": forms.NumberInput(attrs={"class": "form-control form-control-sm", "min": 1, "max": 12}),
+            "is_percentage_base": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ("amount", "percentage_rate", "payment_month"):
+            self.fields[field_name].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        method = cleaned.get("calculation_method")
+        if method == BudgetPlanSalaryComponent.METHOD_MONTHLY:
+            cleaned["percentage_rate"] = 0
+            cleaned["payment_month"] = None
+        elif method == BudgetPlanSalaryComponent.METHOD_PERCENTAGE:
+            cleaned["amount"] = 0
+            cleaned["start_month"] = 1
+            cleaned["periods_count"] = 12
+            cleaned["payment_month"] = None
+        elif method == BudgetPlanSalaryComponent.METHOD_SEASONAL:
+            cleaned["percentage_rate"] = 0
+            cleaned["start_month"] = 1
+            cleaned["periods_count"] = 1
+            cleaned["is_percentage_base"] = False
+        return cleaned
+
+
+BudgetPlanSalaryComponentFormSet = forms.inlineformset_factory(
+    BudgetPlanLine,
+    BudgetPlanSalaryComponent,
+    form=BudgetPlanSalaryComponentForm,
+    extra=1,
+    can_delete=True,
+)
 
 
 class BudgetForm(forms.ModelForm):

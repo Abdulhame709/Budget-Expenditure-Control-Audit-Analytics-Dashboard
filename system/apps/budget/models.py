@@ -405,6 +405,7 @@ class BudgetPlanLine(TimeStampedModel):
     INPUT_DAYS_WORKERS = "days_workers"
     INPUT_HOURS_WORKERS = "hours_workers"
     INPUT_PERCENTAGE = "percentage"
+    INPUT_SALARY_COMPONENTS = "salary_components"
     INPUT_MODE_CHOICES = [
         (INPUT_NONE, "بدون إدخال"),
         (INPUT_ANNUAL, "مبلغ سنوي"),
@@ -414,6 +415,7 @@ class BudgetPlanLine(TimeStampedModel):
         (INPUT_DAYS_WORKERS, "أيام × عدد العاملين × سعر اليوم"),
         (INPUT_HOURS_WORKERS, "ساعات × عدد العاملين × سعر الساعة"),
         (INPUT_PERCENTAGE, "نسبة مئوية من مبلغ أساس"),
+        (INPUT_SALARY_COMPONENTS, "مكونات راتب واستحقاقات موظف"),
     ]
 
     DIST_NONE = "none"
@@ -621,6 +623,96 @@ class BudgetPlanPeriodAmount(models.Model):
 
     def __str__(self):
         return f"{self.line} — {self.month}: {self.amount}"
+
+
+class BudgetPlanSalaryComponent(TimeStampedModel):
+    TYPE_EARNING = "earning"
+    TYPE_DEDUCTION = "deduction"
+    COMPONENT_TYPE_CHOICES = [
+        (TYPE_EARNING, "استحقاق / إضافة"),
+        (TYPE_DEDUCTION, "استقطاع"),
+    ]
+
+    METHOD_MONTHLY = "monthly"
+    METHOD_PERCENTAGE = "percentage"
+    METHOD_SEASONAL = "seasonal"
+    CALCULATION_METHOD_CHOICES = [
+        (METHOD_MONTHLY, "مبلغ شهري"),
+        (METHOD_PERCENTAGE, "نسبة من المكونات الأساسية"),
+        (METHOD_SEASONAL, "دفعة موسمية / شهر محدد"),
+    ]
+
+    line = models.ForeignKey(
+        BudgetPlanLine, on_delete=models.CASCADE, related_name="salary_components",
+        verbose_name="بند الموظف",
+    )
+    name = models.CharField("اسم المكون", max_length=150)
+    component_type = models.CharField(
+        "نوع المكون", max_length=16,
+        choices=COMPONENT_TYPE_CHOICES, default=TYPE_EARNING,
+    )
+    calculation_method = models.CharField(
+        "طريقة الحساب", max_length=16,
+        choices=CALCULATION_METHOD_CHOICES, default=METHOD_MONTHLY,
+    )
+    amount = models.DecimalField(
+        "المبلغ", max_digits=14, decimal_places=2, default=0,
+        validators=[MinValueValidator(0)],
+    )
+    percentage_rate = models.DecimalField(
+        "النسبة المئوية", max_digits=7, decimal_places=4, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+    )
+    start_month = models.PositiveSmallIntegerField(
+        "شهر البداية", default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+    )
+    periods_count = models.PositiveSmallIntegerField(
+        "عدد الأشهر", default=12,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+    )
+    payment_month = models.PositiveSmallIntegerField(
+        "شهر الصرف الموسمي", null=True, blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(12)],
+    )
+    is_percentage_base = models.BooleanField(
+        "يدخل في أساس النسب", default=False,
+        help_text="فعّلها للراتب الأساسي أو أي بدل تدخل قيمته في حساب التأمينات والنسب.",
+    )
+    position = models.PositiveIntegerField("الترتيب", default=1)
+    is_active = models.BooleanField("نشط", default=True)
+
+    class Meta:
+        db_table = "budget_plan_salary_components"
+        verbose_name = "مكون راتب لبند الموازنة"
+        verbose_name_plural = "مكونات رواتب بنود الموازنة"
+        ordering = ["position", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["line", "position"], name="uq_budget_salary_component_position",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.line} — {self.name}"
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.calculation_method == self.METHOD_MONTHLY:
+            if self.start_month and self.periods_count and self.start_month + self.periods_count - 1 > 12:
+                errors["periods_count"] = "شهر البداية مع عدد الأشهر يجب ألا يتجاوز ديسمبر."
+        elif self.calculation_method == self.METHOD_PERCENTAGE:
+            if not self.percentage_rate:
+                errors["percentage_rate"] = "أدخل نسبة أكبر من صفر."
+            if self.is_percentage_base:
+                errors["is_percentage_base"] = "مكون النسبة لا يمكن أن يكون أساسًا لنسبة أخرى."
+        elif self.calculation_method == self.METHOD_SEASONAL and not self.payment_month:
+            errors["payment_month"] = "حدد شهر صرف الدفعة الموسمية."
+        if self.component_type == self.TYPE_DEDUCTION and self.is_percentage_base:
+            errors["is_percentage_base"] = "الاستقطاع لا يستخدم كأساس لحساب النسب."
+        if errors:
+            raise ValidationError(errors)
 
 
 class BudgetTemplate(TimeStampedModel):

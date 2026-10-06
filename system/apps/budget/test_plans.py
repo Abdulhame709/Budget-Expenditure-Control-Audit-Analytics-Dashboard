@@ -11,6 +11,7 @@ from apps.budget import forms, services
 from apps.budget.models import (
     BudgetPlan,
     BudgetPlanLine,
+    BudgetPlanSalaryComponent,
     BudgetPlanSection,
 )
 from apps.reference.models import Account, Currency, Department, Employee, FiscalYear
@@ -190,6 +191,38 @@ class BudgetPlanCalculationTests(BudgetPlanFixture):
         services.sync_plan_line_amounts(line)
         line.refresh_from_db()
         self.assertEqual(line.annual_amount, Decimal("9375.00"))
+
+    def test_salary_components_calculation_and_monthly_distribution(self):
+        line = self.make_line(
+            input_mode=BudgetPlanLine.INPUT_SALARY_COMPONENTS,
+            distribution_method=BudgetPlanLine.DIST_NONE,
+            employee=self.employee,
+            annual_amount=0,
+        )
+        BudgetPlanSalaryComponent.objects.create(
+            line=line, position=1, name="الراتب الأساسي",
+            amount=Decimal("100000"), periods_count=12,
+            is_percentage_base=True,
+        )
+        BudgetPlanSalaryComponent.objects.create(
+            line=line, position=2, name="بدل مواصلات",
+            amount=Decimal("20000"), periods_count=12,
+        )
+        BudgetPlanSalaryComponent.objects.create(
+            line=line, position=3, name="تأمينات جهة العمل",
+            calculation_method=BudgetPlanSalaryComponent.METHOD_PERCENTAGE,
+            percentage_rate=Decimal("11"),
+        )
+        BudgetPlanSalaryComponent.objects.create(
+            line=line, position=4, name="إكرامية رمضان",
+            calculation_method=BudgetPlanSalaryComponent.METHOD_SEASONAL,
+            amount=Decimal("50000"), payment_month=3,
+        )
+        values = services.sync_plan_line_amounts(line)
+        line.refresh_from_db()
+        self.assertEqual(values[1], Decimal("131000.00"))
+        self.assertEqual(values[3], Decimal("181000.00"))
+        self.assertEqual(line.annual_amount, Decimal("1622000.00"))
 
     def test_monthly_input_becomes_annual_total(self):
         line = self.make_line(
@@ -382,6 +415,29 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
         second.refresh_from_db()
         self.assertFalse(second.is_included)
 
+    def test_copy_salary_line_copies_its_components(self):
+        line = self.make_line(
+            display_name="راتب موظف",
+            input_mode=BudgetPlanLine.INPUT_SALARY_COMPONENTS,
+            distribution_method=BudgetPlanLine.DIST_NONE,
+            employee=self.employee,
+            annual_amount=0,
+        )
+        BudgetPlanSalaryComponent.objects.create(
+            line=line, position=1, name="الراتب الأساسي",
+            amount=Decimal("100000"), periods_count=12,
+            is_percentage_base=True,
+        )
+        services.sync_plan_line_amounts(line)
+        response = self.client_for(self.admin).post(
+            reverse("budget:plan_line_copy", args=[line.pk]),
+        )
+        self.assertRedirects(response, reverse("budget:plan_detail", args=[self.plan.pk]))
+        copied = BudgetPlanLine.objects.get(display_name="راتب موظف - نسخة")
+        self.assertEqual(copied.salary_components.count(), 1)
+        self.assertEqual(copied.annual_amount, Decimal("1200000.00"))
+        self.assertEqual(copied.salary_components.get().created_by, self.admin)
+
     def test_title_row_is_saved_without_amount_or_account_links(self):
         data = {
             "position": "1",
@@ -477,3 +533,62 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
             sum(line.period_amounts.values_list("amount", flat=True)),
             Decimal("15000.00"),
         )
+
+    def test_admin_creates_employee_salary_components_from_editor(self):
+        data = {
+            "position": "1",
+            "row_type": BudgetPlanLine.TYPE_DETAIL,
+            "display_name": "استحقاقات موظف المالية",
+            "main_account": str(self.main_account.pk),
+            "analytical_account": str(self.analytical_account.pk),
+            "department": str(self.finance.pk),
+            "employee": str(self.employee.pk),
+            "unit_of_measure": "موظف",
+            "input_mode": BudgetPlanLine.INPUT_SALARY_COMPONENTS,
+            "distribution_method": BudgetPlanLine.DIST_NONE,
+            "annual_amount": "0",
+            "quantity": "0", "unit_price": "0",
+            "periodic_amount": "0", "periods_count": "0",
+            "estimation_basis": "راتب وبدلات الموظف",
+            "is_included": "on",
+            "salary-TOTAL_FORMS": "3",
+            "salary-INITIAL_FORMS": "0",
+            "salary-MIN_NUM_FORMS": "0",
+            "salary-MAX_NUM_FORMS": "1000",
+            "salary-0-position": "1",
+            "salary-0-name": "الراتب الأساسي",
+            "salary-0-component_type": BudgetPlanSalaryComponent.TYPE_EARNING,
+            "salary-0-calculation_method": BudgetPlanSalaryComponent.METHOD_MONTHLY,
+            "salary-0-amount": "100000",
+            "salary-0-percentage_rate": "0",
+            "salary-0-start_month": "1",
+            "salary-0-periods_count": "12",
+            "salary-0-is_percentage_base": "on",
+            "salary-0-is_active": "on",
+            "salary-1-position": "2",
+            "salary-1-name": "بدل هاتف",
+            "salary-1-component_type": BudgetPlanSalaryComponent.TYPE_EARNING,
+            "salary-1-calculation_method": BudgetPlanSalaryComponent.METHOD_MONTHLY,
+            "salary-1-amount": "5000",
+            "salary-1-percentage_rate": "0",
+            "salary-1-start_month": "1",
+            "salary-1-periods_count": "12",
+            "salary-1-is_active": "on",
+            "salary-2-position": "3",
+            "salary-2-name": "تأمينات",
+            "salary-2-component_type": BudgetPlanSalaryComponent.TYPE_EARNING,
+            "salary-2-calculation_method": BudgetPlanSalaryComponent.METHOD_PERCENTAGE,
+            "salary-2-amount": "0",
+            "salary-2-percentage_rate": "11",
+            "salary-2-start_month": "1",
+            "salary-2-periods_count": "12",
+            "salary-2-is_active": "on",
+        }
+        response = self.client_for(self.admin).post(
+            reverse("budget:plan_line_create", args=[self.section.pk]), data,
+        )
+        self.assertRedirects(response, reverse("budget:plan_detail", args=[self.plan.pk]))
+        line = BudgetPlanLine.objects.get(display_name="استحقاقات موظف المالية")
+        self.assertEqual(line.salary_components.count(), 3)
+        self.assertEqual(line.annual_amount, Decimal("1392000.00"))
+        self.assertEqual(line.salary_components.filter(created_by=self.admin).count(), 3)

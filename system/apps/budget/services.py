@@ -21,6 +21,7 @@ from .models import (
     BudgetPlan,
     BudgetPlanLine,
     BudgetPlanPeriodAmount,
+    BudgetPlanSalaryComponent,
     BudgetVersion,
 )
 
@@ -120,6 +121,66 @@ def _money(value) -> Decimal:
     return Decimal(value or 0).quantize(CENT, rounding=ROUND_HALF_UP)
 
 
+def salary_component_monthly_values(line: BudgetPlanLine) -> dict[int, Decimal]:
+    components = list(line.salary_components.filter(is_active=True).order_by("position", "pk"))
+    if not components:
+        raise ValidationError({"input_mode": "أضف مكون راتب نشطًا واحدًا على الأقل."})
+
+    component_values = {}
+    percentage_base = {month: ZERO for month in range(1, 13)}
+    for component in components:
+        values = {month: ZERO for month in range(1, 13)}
+        if component.calculation_method == BudgetPlanSalaryComponent.METHOD_MONTHLY:
+            last_month = component.start_month + component.periods_count - 1
+            if last_month > 12:
+                raise ValidationError({
+                    "input_mode": f"مكون «{component.name}» يتجاوز شهر ديسمبر."
+                })
+            for month in range(component.start_month, last_month + 1):
+                values[month] = _money(component.amount)
+        elif component.calculation_method == BudgetPlanSalaryComponent.METHOD_SEASONAL:
+            if not component.payment_month:
+                raise ValidationError({
+                    "input_mode": f"حدد شهر صرف المكون الموسمي «{component.name}»."
+                })
+            values[component.payment_month] = _money(component.amount)
+        component_values[component.pk] = values
+        if component.is_percentage_base:
+            for month in range(1, 13):
+                percentage_base[month] += values[month]
+
+    if any(
+        component.calculation_method == BudgetPlanSalaryComponent.METHOD_PERCENTAGE
+        for component in components
+    ) and not any(percentage_base.values()):
+        raise ValidationError({
+            "input_mode": "حدد مكونًا واحدًا على الأقل كأساس لحساب النسب."
+        })
+
+    result = {month: ZERO for month in range(1, 13)}
+    for component in components:
+        if component.calculation_method == BudgetPlanSalaryComponent.METHOD_PERCENTAGE:
+            values = {
+                month: _money(
+                    percentage_base[month]
+                    * Decimal(component.percentage_rate or 0)
+                    / Decimal("100")
+                )
+                for month in range(1, 13)
+            }
+        else:
+            values = component_values[component.pk]
+        sign = Decimal("-1") if component.component_type == BudgetPlanSalaryComponent.TYPE_DEDUCTION else Decimal("1")
+        for month in range(1, 13):
+            result[month] += values[month] * sign
+
+    if any(amount < ZERO for amount in result.values()):
+        raise ValidationError({
+            "input_mode": "لا يجوز أن تتجاوز الاستقطاعات إجمالي الاستحقاقات في أي شهر."
+        })
+    return {month: _money(amount) for month, amount in result.items()}
+
+
 def calculate_plan_line_annual(
     line: BudgetPlanLine, monthly_values: dict[int, Decimal] | None = None,
 ) -> Decimal:
@@ -155,6 +216,8 @@ def calculate_plan_line_annual(
             * Decimal(line.percentage_rate or 0)
             / Decimal("100")
         )
+    if line.input_mode == BudgetPlanLine.INPUT_SALARY_COMPONENTS:
+        return _money(sum(salary_component_monthly_values(line).values(), ZERO))
     raise ValidationError({"input_mode": "طريقة الإدخال غير مدعومة."})
 
 
@@ -167,6 +230,12 @@ def distribute_plan_line(
     annual_amount = _money(annual_amount)
     empty = {month: ZERO for month in range(1, 13)}
     method = line.distribution_method
+
+    if line.input_mode == BudgetPlanLine.INPUT_SALARY_COMPONENTS:
+        values = salary_component_monthly_values(line)
+        if _money(sum(values.values(), ZERO)) != annual_amount:
+            raise ValidationError({"annual_amount": "إجمالي مكونات الراتب غير متطابق."})
+        return values
 
     if line.input_mode == BudgetPlanLine.INPUT_MONTHLY or method == BudgetPlanLine.DIST_MANUAL:
         values = {

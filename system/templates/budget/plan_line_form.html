@@ -15,6 +15,13 @@
   <div class="row g-3">
   {% for field in non_month_fields %}<div class="smart-field col-md-{% if field.name == 'estimation_basis' or field.name == 'selected_months' or field.name == 'aggregate_sections' %}12{% else %}6{% endif %}" data-field="{{ field.name }}"><label class="form-label">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}{% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}</div>{% endfor %}
   </div>
+  <div id="salary-components-section" hidden>
+    <hr><div class="d-flex justify-content-between align-items-center mb-2"><div><h2 class="h5 mb-1">مكونات الراتب والاستحقاقات</h2><p class="text-muted small mb-0">علّم الراتب الأساسي والمكونات المطلوبة كأساس للنسب، ثم أضف التأمينات أو الاستقطاعات بطريقة النسبة.</p></div><button type="button" class="btn btn-sm btn-outline-primary" id="add-salary-component">إضافة مكون</button></div>
+    {{ salary_formset.management_form }}
+    {% for error in salary_formset.non_form_errors %}<div class="alert alert-danger py-2">{{ error }}</div>{% endfor %}
+    <div id="salary-component-forms">{% for component_form in salary_formset %}{% include "budget/_salary_component_form.html" with component_form=component_form %}{% endfor %}</div>
+    <template id="empty-salary-component">{% include "budget/_salary_component_form.html" with component_form=salary_formset.empty_form %}</template>
+  </div>
   <div id="monthly-fields-section"><hr><h2 class="h5">التوزيع الشهري اليدوي</h2><p class="text-muted small">أدخل المبالغ لكل شهر، وسيحسب النظام الإجمالي السنوي تلقائيًا.</p><div class="row g-2">{% for field in month_fields %}<div class="col-6 col-md-3 col-xl-2"><label class="form-label small">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div>{% endfor %}</div></div>
   <div class="smart-editor-summary alert alert-light border mt-4 mb-0 d-flex justify-content-between align-items-center"><span>الإجمالي السنوي المتوقع</span><strong id="annual-preview">0.00</strong></div>
   <div class="mt-4"><button class="btn btn-primary" type="submit">حفظ وإعادة الحساب</button> <a class="btn btn-outline-secondary" href="{% url 'budget:plan_detail' plan.pk %}">إلغاء</a></div>
@@ -26,6 +33,7 @@
   const rowType=document.getElementById('id_row_type'), inputMode=document.getElementById('id_input_mode');
   const distribution=document.getElementById('id_distribution_method'), annual=document.getElementById('id_annual_amount');
   const monthlySection=document.getElementById('monthly-fields-section'), annualPreview=document.getElementById('annual-preview');
+  const salarySection=document.getElementById('salary-components-section');
   const inputRows=new Set(['analytical_account','detail']);
   const accountRows=new Set(['main_account','analytical_account','detail']);
   const totalRows=new Set(['subtotal','total']);
@@ -33,9 +41,17 @@
   const field=name=>document.querySelector(`[data-field="${name}"]`);
   const show=(name,visible)=>{const element=field(name); if(element)element.hidden=!visible;};
   const number=id=>Number.parseFloat(document.getElementById(id)?.value||0)||0;
+  const rowNumber=(row,suffix)=>Number.parseFloat(row.querySelector(`[name$="-${suffix}"]`)?.value||0)||0;
   async function refill(select,url,placeholder){const current=select.value; const data=await fetch(url).then(r=>r.json()); select.innerHTML=`<option value="">${placeholder}</option>`; data.results.forEach(x=>select.add(new Option(x.text,x.id))); if([...select.options].some(o=>o.value===current))select.value=current;}
   main?.addEventListener('change',()=>refill(analytical,`{% url 'budget:plan_analytical_accounts' %}?main_account=${main.value}`,'— اختر الحساب التحليلي —'));
   department?.addEventListener('change',()=>refill(employee,`{% url 'budget:plan_department_employees' %}?department=${department.value}`,'— اختر الموظف —'));
+  function salaryTotal(){
+    const rows=[...document.querySelectorAll('[data-component-form]')].filter(row=>!row.querySelector('[name$="-DELETE"]')?.checked&&row.querySelector('[name$="-is_active"]')?.checked);
+    let base=0,total=0;
+    rows.forEach(row=>{const method=row.querySelector('[name$="-calculation_method"]')?.value; const amount=rowNumber(row,'amount'); const periods=method==='monthly'?rowNumber(row,'periods_count'):1; const value=method==='percentage'?0:amount*periods; const sign=row.querySelector('[name$="-component_type"]')?.value==='deduction'?-1:1; total+=value*sign; if(row.querySelector('[name$="-is_percentage_base"]')?.checked)base+=value;});
+    rows.forEach(row=>{if(row.querySelector('[name$="-calculation_method"]')?.value==='percentage'){const sign=row.querySelector('[name$="-component_type"]')?.value==='deduction'?-1:1; total+=base*rowNumber(row,'percentage_rate')/100*sign;}});
+    return total;
+  }
   function updatePreview(){
     let total=number('id_annual_amount');
     if(inputMode?.value==='monthly')total=[...Array(12)].reduce((sum,_,index)=>sum+number(`id_m${String(index+1).padStart(2,'0')}`),0);
@@ -44,6 +60,7 @@
     if(inputMode?.value==='days_workers')total=number('id_days_count')*number('id_workers_count')*number('id_rate_amount');
     if(inputMode?.value==='hours_workers')total=number('id_hours_count')*number('id_workers_count')*number('id_rate_amount');
     if(inputMode?.value==='percentage')total=number('id_base_amount')*number('id_percentage_rate')/100;
+    if(inputMode?.value==='salary_components')total=salaryTotal();
     annualPreview.textContent=new Intl.NumberFormat('ar-YE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(total);
     if(annual && inputMode?.value!=='annual')annual.value=total.toFixed(2);
   }
@@ -51,6 +68,7 @@
     const type=rowType?.value||'detail';
     if(normalize && !inputRows.has(type)){inputMode.value='none'; distribution.value='none';}
     if(normalize && inputMode?.value==='monthly')distribution.value='manual';
+    if(normalize && inputMode?.value==='salary_components')distribution.value='none';
     controlled.forEach(name=>show(name,false));
     if(accountRows.has(type))show('main_account',true);
     if(type==='analytical_account'||type==='detail')show('analytical_account',true);
@@ -61,7 +79,7 @@
     if(inputRows.has(type))show('input_mode',true);
     const mode=inputRows.has(type)?inputMode?.value:'none';
     const hasInput=mode&&mode!=='none';
-    show('distribution_method',hasInput);
+    show('distribution_method',hasInput&&mode!=='salary_components');
     show('annual_amount',hasInput);
     show('quantity',mode==='quantity_price'); show('unit_price',mode==='quantity_price');
     show('periodic_amount',mode==='periodic'); show('periods_count',mode==='periodic');
@@ -73,6 +91,7 @@
     show('single_month',hasInput&&method==='single_month');
     show('selected_months',hasInput&&method==='selected_months');
     monthlySection.hidden=!(mode==='monthly'||method==='manual');
+    salarySection.hidden=mode!=='salary_components';
     if(annual)annual.readOnly=mode!=='annual';
     updatePreview();
   }
@@ -80,6 +99,34 @@
   inputMode?.addEventListener('change',()=>updateSmartFields(true));
   distribution?.addEventListener('change',()=>updateSmartFields(false));
   document.getElementById('plan-line-form')?.addEventListener('input',updatePreview);
+  function updateComponentRow(row){
+    const method=row.querySelector('[name$="-calculation_method"]')?.value||'monthly';
+    const type=row.querySelector('[name$="-component_type"]')?.value||'earning';
+    row.querySelectorAll('[data-component-field]').forEach(element=>element.hidden=false);
+    row.querySelector('[data-component-field="amount"]').hidden=method==='percentage';
+    row.querySelector('[data-component-field="percentage_rate"]').hidden=method!=='percentage';
+    row.querySelector('[data-component-field="start_month"]').hidden=method!=='monthly';
+    row.querySelector('[data-component-field="periods_count"]').hidden=method!=='monthly';
+    row.querySelector('[data-component-field="payment_month"]').hidden=method!=='seasonal';
+    row.querySelector('[data-component-field="is_percentage_base"]').hidden=method==='percentage'||type==='deduction';
+  }
+  function bindComponentRow(row){
+    updateComponentRow(row);
+    row.querySelector('[name$="-calculation_method"]')?.addEventListener('change',()=>{updateComponentRow(row);updatePreview();});
+    row.querySelector('[name$="-component_type"]')?.addEventListener('change',()=>{updateComponentRow(row);updatePreview();});
+    row.querySelector('[data-remove-component]')?.addEventListener('click',()=>{const remove=row.querySelector('[name$="-DELETE"]'); if(remove)remove.checked=true; row.hidden=true; updatePreview();});
+  }
+  document.querySelectorAll('[data-component-form]').forEach(bindComponentRow);
+  document.getElementById('add-salary-component')?.addEventListener('click',()=>{
+    const totalForms=document.getElementById('id_salary-TOTAL_FORMS');
+    const index=Number.parseInt(totalForms.value,10);
+    const template=document.getElementById('empty-salary-component').innerHTML.replaceAll('__prefix__',index);
+    document.getElementById('salary-component-forms').insertAdjacentHTML('beforeend',template);
+    totalForms.value=index+1;
+    const row=document.getElementById('salary-component-forms').lastElementChild;
+    const position=row.querySelector('[name$="-position"]'); if(position)position.value=index+1;
+    bindComponentRow(row); updatePreview();
+  });
   updateSmartFields(false);
   if(main?.value&&analytical&&analytical.options.length<=1)refill(analytical,`{% url 'budget:plan_analytical_accounts' %}?main_account=${main.value}`,'— اختر الحساب التحليلي —');
 })();

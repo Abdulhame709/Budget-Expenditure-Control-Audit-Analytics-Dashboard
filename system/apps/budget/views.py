@@ -856,10 +856,21 @@ def _line_form_response(request, section, line=None):
         parent_id = request.GET.get("parent")
         if parent_id and section.lines.filter(pk=parent_id).exists():
             initial["parent"] = parent_id
+    line_instance = line or BudgetPlanLine(section=section)
     form = forms.BudgetPlanLineForm(
-        request.POST or None, instance=line, section=section, initial=initial,
+        request.POST or None, instance=line_instance, section=section, initial=initial,
     )
-    if request.method == "POST" and form.is_valid():
+    salary_formset_data = None
+    if request.method == "POST" and (
+        request.POST.get("input_mode") == BudgetPlanLine.INPUT_SALARY_COMPONENTS
+        or "salary-TOTAL_FORMS" in request.POST
+    ):
+        salary_formset_data = request.POST
+    salary_formset = forms.BudgetPlanSalaryComponentFormSet(
+        salary_formset_data, instance=line_instance, prefix="salary",
+    )
+    salary_formset_is_valid = not salary_formset.is_bound or salary_formset.is_valid()
+    if request.method == "POST" and form.is_valid() and salary_formset_is_valid:
         try:
             with transaction.atomic():
                 saved_line = form.save(commit=False)
@@ -869,6 +880,16 @@ def _line_form_response(request, section, line=None):
                 saved_line.updated_by = request.user
                 saved_line.save()
                 form.save_m2m()
+                if salary_formset.is_bound:
+                    salary_formset.instance = saved_line
+                    salary_components = salary_formset.save(commit=False)
+                    for deleted_component in salary_formset.deleted_objects:
+                        deleted_component.delete()
+                    for component in salary_components:
+                        if not component.pk:
+                            component.created_by = request.user
+                        component.updated_by = request.user
+                        component.save()
                 services.sync_plan_line_amounts(saved_line, form.monthly_values())
         except ValidationError as exc:
             for field, errors in exc.message_dict.items():
@@ -885,6 +906,7 @@ def _line_form_response(request, section, line=None):
             return redirect("budget:plan_detail", pk=section.plan_id)
     return render(request, "budget/plan_line_form.html", {
         "form": form, "section": section, "plan": section.plan, "line": line,
+        "salary_formset": salary_formset,
         "non_month_fields": [
             field for field in form if field.name not in MONTH_FIELDS
         ],
@@ -935,6 +957,11 @@ def plan_line_copy(request, pk):
         last_position = source.section.lines.aggregate(value=models.Max("position"))["value"] or 0
         monthly = {row.month: row.amount for row in source.period_amounts.all()}
         aggregate_section_ids = list(source.aggregate_sections.values_list("pk", flat=True))
+        salary_component_values = list(source.salary_components.values(
+            "name", "component_type", "calculation_method", "amount",
+            "percentage_rate", "start_month", "periods_count", "payment_month",
+            "is_percentage_base", "position", "is_active",
+        ))
         source.pk = None
         source.position = last_position + 1
         source.display_name = f"{source.display_name} - نسخة"
@@ -942,6 +969,12 @@ def plan_line_copy(request, pk):
         source.updated_by = request.user
         source.save()
         source.aggregate_sections.set(aggregate_section_ids)
+        for component_values in salary_component_values:
+            source.salary_components.create(
+                **component_values,
+                created_by=request.user,
+                updated_by=request.user,
+            )
         services.sync_plan_line_amounts(source, monthly)
         log_action(
             action="budget_plan_line_copied", entity_type="budgetplanline",

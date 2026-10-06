@@ -1,0 +1,19 @@
+<div class="salary-component-row border rounded-3 p-3 mb-2" data-component-form>
+  {% for hidden in component_form.hidden_fields %}{{ hidden }}{% endfor %}
+  <div class="row g-2 align-items-end">
+    <div class="col-md-1" data-component-field="position"><label class="form-label small">{{ component_form.position.label }}</label>{{ component_form.position }}</div>
+    <div class="col-md-3" data-component-field="name"><label class="form-label small">{{ component_form.name.label }}</label>{{ component_form.name }}</div>
+    <div class="col-md-2" data-component-field="component_type"><label class="form-label small">{{ component_form.component_type.label }}</label>{{ component_form.component_type }}</div>
+    <div class="col-md-3" data-component-field="calculation_method"><label class="form-label small">{{ component_form.calculation_method.label }}</label>{{ component_form.calculation_method }}</div>
+    <div class="col-md-3" data-component-field="amount"><label class="form-label small">{{ component_form.amount.label }}</label>{{ component_form.amount }}</div>
+    <div class="col-md-2" data-component-field="percentage_rate"><label class="form-label small">{{ component_form.percentage_rate.label }}</label>{{ component_form.percentage_rate }}</div>
+    <div class="col-md-2" data-component-field="start_month"><label class="form-label small">{{ component_form.start_month.label }}</label>{{ component_form.start_month }}</div>
+    <div class="col-md-2" data-component-field="periods_count"><label class="form-label small">{{ component_form.periods_count.label }}</label>{{ component_form.periods_count }}</div>
+    <div class="col-md-2" data-component-field="payment_month"><label class="form-label small">{{ component_form.payment_month.label }}</label>{{ component_form.payment_month }}</div>
+    <div class="col-md-2" data-component-field="is_percentage_base"><div class="form-check">{{ component_form.is_percentage_base }}<label class="form-check-label small" for="{{ component_form.is_percentage_base.id_for_label }}">{{ component_form.is_percentage_base.label }}</label></div></div>
+    <div class="col-md-2" data-component-field="is_active"><div class="form-check">{{ component_form.is_active }}<label class="form-check-label small" for="{{ component_form.is_active.id_for_label }}">{{ component_form.is_active.label }}</label></div></div>
+    <div class="col-md-2"><div class="d-none">{{ component_form.DELETE }}</div><button type="button" class="btn btn-sm btn-outline-danger" data-remove-component>حذف المكون</button></div>
+  </div>
+  {% for field in component_form.visible_fields %}{% for error in field.errors %}<div class="text-danger small mt-1">{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}
+  {% for error in component_form.non_field_errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+</div>

@@ -305,6 +305,14 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
         ids = {item["id"] for item in response.json()["results"]}
         self.assertEqual(ids, {self.employee.pk})
 
+    def test_line_editor_renders_main_and_analytical_account_fields(self):
+        response = self.client_for(self.admin).get(
+            reverse("budget:plan_line_create", args=[self.section.pk]),
+        )
+        self.assertContains(response, 'id="id_main_account"')
+        self.assertContains(response, 'id="id_analytical_account"')
+        self.assertContains(response, self.main_account.name)
+
     def test_admin_creates_monthly_line_from_editor(self):
         data = {
             "position": "1",

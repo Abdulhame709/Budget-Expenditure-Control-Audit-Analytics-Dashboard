@@ -879,6 +879,9 @@ def _line_form_response(request, section, line=None):
             return redirect("budget:plan_detail", pk=section.plan_id)
     return render(request, "budget/plan_line_form.html", {
         "form": form, "section": section, "plan": section.plan, "line": line,
+        "non_month_fields": [
+            field for field in form if field.name not in MONTH_FIELDS
+        ],
         "month_fields": [form[f"m{month:02d}"] for month in range(1, 13)],
     })
 

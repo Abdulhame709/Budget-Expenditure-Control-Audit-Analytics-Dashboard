@@ -237,6 +237,8 @@ class BudgetLine(TimeStampedModel):
                 "سطور الميزانية تُقيَّد على حسابات نوع «مصروفات» فقط — "
                 f"الحساب المحدد من نوع «{self.account.get_account_type_display()}»."
             )
+        elif self.account_id and not self.account.is_operational:
+            errors["account"] = "يجب اختيار حساب نشط من المستوى الخامس."
         # negative months (bypassing field validators)
         for fname in MONTH_FIELDS:
             value = getattr(self, fname, None)
@@ -333,9 +335,10 @@ class BudgetPlanSection(TimeStampedModel):
         if self.default_main_account_id and (
             not self.default_main_account.is_active
             or self.default_main_account.account_type != "expense"
+            or self.default_main_account.level != 5
         ):
             raise ValidationError({
-                "default_main_account": "يجب اختيار حساب مصروف نشط."
+                "default_main_account": "يجب اختيار حساب مصروف نشط من المستوى الخامس."
             })
 
 
@@ -483,18 +486,10 @@ class BudgetPlanLine(TimeStampedModel):
             node = node.parent
         for field_name in ("main_account", "analytical_account"):
             account = getattr(self, field_name)
-            if account and (not account.is_active or account.account_type != "expense"):
-                errors[field_name] = "يجب اختيار حساب مصروف نشط."
-        if self.main_account and self.analytical_account:
-            node = self.analytical_account.parent
-            is_descendant = False
-            while node is not None:
-                if node.pk == self.main_account.pk:
-                    is_descendant = True
-                    break
-                node = node.parent
-            if not is_descendant:
-                errors["analytical_account"] = "الحساب التحليلي يجب أن يتبع الحساب الرئيسي."
+            if account and (
+                not account.is_active or account.account_type != "expense" or account.level != 5
+            ):
+                errors[field_name] = "يجب اختيار حساب مصروف نشط من المستوى الخامس."
         if self.employee and self.department and self.employee.department_id != self.department_id:
             errors["employee"] = "الموظف المختار لا يتبع الإدارة المحددة."
         if self.single_month is not None and not 1 <= self.single_month <= 12:

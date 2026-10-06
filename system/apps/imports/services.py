@@ -213,6 +213,31 @@ def build_template_csv(target: str) -> str:
     return buf.getvalue()
 
 
+def build_accounts_template_xlsx() -> bytes:
+    """Excel template matching the approved 2026 chart-of-accounts workbook."""
+    import openpyxl
+    from openpyxl.styles import Alignment, Font, PatternFill
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "دليل الحسابات"
+    headers = [label for _key, label in get_target_fields("accounts")]
+    sheet.append(headers)
+    sheet.sheet_view.rightToLeft = True
+    sheet.freeze_panes = "A2"
+    fill = PatternFill("solid", fgColor="1F4E78")
+    for cell in sheet[1]:
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.fill = fill
+        cell.alignment = Alignment(horizontal="center")
+    widths = [18, 20, 38, 12, 14, 20, 24, 24]
+    for index, width in enumerate(widths, start=1):
+        sheet.column_dimensions[openpyxl.utils.get_column_letter(index)].width = width
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
 # ---------------------------------------------------------------- multi-sheet budget archive
 def _looks_numeric_value(v):
     from decimal import Decimal, InvalidOperation

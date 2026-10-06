@@ -4,6 +4,7 @@ validation matrix, duplicates, confirmation, RBAC, logs — Synthetic only.
 from __future__ import annotations
 
 import tempfile
+from io import BytesIO
 from datetime import date
 from decimal import Decimal as D
 
@@ -579,17 +580,48 @@ class StructuredTargetImportTests(BaseFixture):
 
     def test_chart_of_accounts_import(self):
         content = (
-            "Account Code,Account Name,Account Type,Expense Category\n"
-            "6100,خدمات مهنية,expense,SUPPLIES\n"
+            "رقم الحساب,العملة,اسم الحساب,المستوى,النوع,الحساب الرئيسي,التضمين,نوع التقرير\n"
+            "3,YER,المصروفات,1,رئيسي,,=,أرباح وخسائر\n"
+            "31,YER,مصروفات تشغيلية,2,رئيسي,3,=,أرباح وخسائر\n"
+            "311,YER,خدمات,3,رئيسي,31,=,أرباح وخسائر\n"
+            "3111,YER,خدمات مهنية,4,رئيسي,311,=,أرباح وخسائر\n"
+            "311101,YER,استشارات مهنية,5,رئيسي,3111,=,أرباح وخسائر\n"
         ).encode("utf-8")
         job = self.extract_target("accounts", "accounts.csv", content)
-        self.assertEqual(job.column_map["code"], "Account Code")
+        self.assertEqual(job.column_map["code"], "رقم الحساب")
         summary = svc.validate_job(job, self.finance)
-        self.assertEqual(summary["valid"], 1)
-        self.assertEqual(svc.run_import(job, self.finance), 1)
-        account = Account.objects.get(code="6100")
-        self.assertEqual(account.name, "خدمات مهنية")
-        self.assertEqual(account.expense_category, self.cat)
+        self.assertEqual(summary["valid"], 5, summary)
+        self.assertEqual(svc.run_import(job, self.finance), 5)
+        account = Account.objects.get(code="311101")
+        self.assertEqual(account.name, "استشارات مهنية")
+        self.assertEqual(account.level, 5)
+        self.assertEqual(account.parent.code, "3111")
+        self.assertEqual(account.currencies, ["YER"])
+        self.assertTrue(account.is_operational)
+
+    def test_chart_of_accounts_template_matches_workbook_headers(self):
+        import openpyxl
+
+        workbook = openpyxl.load_workbook(
+            BytesIO(svc.build_accounts_template_xlsx()), read_only=True,
+        )
+        headers = [cell.value for cell in next(workbook.active.iter_rows())]
+        self.assertEqual(headers, [
+            "رقم الحساب", "العملة", "اسم الحساب", "المستوى", "النوع",
+            "الحساب الرئيسي", "التضمين", "نوع التقرير",
+        ])
+
+    def test_chart_of_accounts_normalizes_multi_currency_and_root_zero(self):
+        content = (
+            "رقم الحساب,العملة,اسم الحساب,المستوى,النوع,الحساب الرئيسي,التضمين,نوع التقرير\n"
+            "1,\"$,SR,YER,\",الأصول,1,رئيسي,0,=,الميزانية العموميه\n"
+        ).encode("utf-8")
+        job = self.extract_target("accounts", "accounts-root.csv", content)
+        summary = svc.validate_job(job, self.finance)
+        job.refresh_from_db()
+        self.assertEqual(summary["valid"], 1, summary)
+        self.assertEqual(job.rows[0]["ready"]["currencies"], ["USD", "SAR", "YER"])
+        self.assertEqual(job.rows[0]["ready"]["parent_code"], "")
 
     def test_budget_lines_import_creates_draft_budget_version(self):
         months = ",".join(f"month {number}" for number in range(1, 13))

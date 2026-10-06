@@ -161,19 +161,39 @@ class ExpenseCategoryForm(forms.ModelForm):
 
 
 class AccountForm(forms.ModelForm):
+    currencies = forms.MultipleChoiceField(
+        label="العملات",
+        choices=[("YER", "الريال اليمني (YER)"), ("USD", "الدولار الأمريكي (USD)"),
+                 ("SAR", "الريال السعودي (SAR)")],
+        widget=forms.CheckboxSelectMultiple,
+    )
+
     class Meta:
         model = Account
-        fields = ["code", "name", "account_type", "parent", "expense_category",
-                  "is_active", "notes"]
+        fields = ["code", "name", "level", "ledger_type", "currencies",
+                  "account_type", "parent", "expense_category", "inclusion",
+                  "report_type", "is_active", "notes"]
         widgets = {
             "code": forms.TextInput(attrs={"class": "form-control", "dir": "ltr"}),
             "name": forms.TextInput(attrs={"class": "form-control"}),
+            "level": forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 6}),
+            "ledger_type": forms.Select(attrs={"class": "form-select"}),
             "account_type": forms.Select(attrs={"class": "form-select"}),
             "parent": forms.Select(attrs={"class": "form-select"}),
             "expense_category": forms.Select(attrs={"class": "form-select"}),
+            "inclusion": forms.TextInput(attrs={"class": "form-control"}),
+            "report_type": forms.Select(attrs={"class": "form-select"}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "notes": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            self.initial["currencies"] = self.instance.currencies
+        self.fields["parent"].queryset = Account.objects.filter(is_active=True).order_by("code")
+        self.fields["parent"].required = False
+        self.fields["report_type"].required = False
 
 
 class SupplierForm(forms.ModelForm):

@@ -254,10 +254,17 @@ def import_cancel(request, pk):
 # ---------------------------------------------------------------- column template
 @require_permission("imports.view")
 def import_template(request, target):
-    """Downloadable CSV template: Arabic headers (✓ required) + hint row."""
+    """Downloadable template; accounts use the approved Excel workbook shape."""
     valid_targets = {value for value, _label in ImportJob.TARGET_CHOICES}
     if target not in valid_targets:
         raise Http404("هدف استيراد غير معروف")
+    if target == ImportJob.TARGET_ACCOUNTS:
+        response = HttpResponse(
+            svc.build_accounts_template_xlsx(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="chart-of-accounts-2026.xlsx"'
+        return response
     csv_text = svc.build_template_csv(target)
     response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="template-{target}.csv"'

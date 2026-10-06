@@ -158,6 +158,8 @@ class Expense(models.Model):
                 )
             elif not self.account.is_active:
                 errors["account"] = "الحساب المحدد غير نشط (معطّل)."
+            elif self.account.level != 5:
+                errors["account"] = "يجب اختيار حساب من المستوى الخامس."
         # department must be active
         if self.department_id and not self.department.is_active:
             errors["department"] = "الإدارة المحددة غير نشطة (معطّل)."

@@ -386,6 +386,16 @@ class ExpenseCategory(TimeStampedModel):
 
 
 # ---------------------------------------------------------------- chart of accounts
+def default_account_currencies():
+    return ["YER"]
+
+
+class AccountQuerySet(models.QuerySet):
+    def operational(self):
+        """الحسابات المسموح باستخدامها في الحركات وبقية وحدات النظام."""
+        return self.filter(level=5, is_active=True)
+
+
 class Account(TimeStampedModel):
     """دليل الحسابات — tree + typed accounts.
 
@@ -400,10 +410,30 @@ class Account(TimeStampedModel):
         ("income", "إيرادات"),
         ("expense", "مصروفات"),
     ]
+    LEDGER_TYPE_CHOICES = [
+        ("main", "رئيسي"),
+        ("sub", "فرعي"),
+    ]
+    REPORT_TYPE_CHOICES = [
+        ("balance_sheet", "الميزانية العمومية"),
+        ("profit_loss", "أرباح وخسائر"),
+    ]
 
     code = models.SlugField("رقم الحساب", max_length=20, unique=True)
     name = models.CharField("اسم الحساب", max_length=200)
     account_type = models.CharField("نوع الحساب", max_length=12, choices=TYPE_CHOICES)
+    level = models.PositiveSmallIntegerField(
+        "المستوى", default=5,
+        validators=[MinValueValidator(1), MaxValueValidator(6)],
+    )
+    ledger_type = models.CharField(
+        "النوع في الدليل", max_length=8, choices=LEDGER_TYPE_CHOICES,
+        default="main",
+    )
+    currencies = models.JSONField(
+        "العملات", default=default_account_currencies,
+        help_text="العملات المسموح بها للحساب، مثل YER وUSD وSAR.",
+    )
     parent = models.ForeignKey(
         "self", on_delete=models.PROTECT, null=True, blank=True,
         related_name="children", verbose_name="الحساب الأب",
@@ -413,8 +443,14 @@ class Account(TimeStampedModel):
         related_name="accounts", verbose_name="تصنيف المصروف",
         help_text="يُربط فقط بحسابات نوع «مصروفات».",
     )
+    inclusion = models.CharField("التضمين", max_length=200, blank=True)
+    report_type = models.CharField(
+        "نوع التقرير", max_length=20, choices=REPORT_TYPE_CHOICES, blank=True,
+    )
     is_active = models.BooleanField("نشط", default=True)
     notes = models.TextField("ملاحظات", blank=True)
+
+    objects = AccountQuerySet.as_manager()
 
     class Meta:
         db_table = "accounts_chart"
@@ -429,11 +465,41 @@ class Account(TimeStampedModel):
     def is_expense(self) -> bool:
         return self.account_type == "expense"
 
+    @property
+    def is_operational(self) -> bool:
+        return self.level == 5 and self.is_active
+
+    @property
+    def currencies_display(self) -> str:
+        return "، ".join(self.currencies or []) or "—"
+
     def clean(self):
         super().clean()
         errors: dict = {}
         if self.parent_id and self.parent_id == self.pk:
             errors["parent"] = "لا يمكن أن يكون الحساب أبًا لنفسه."
+        expected_type = {
+            "1": "asset", "2": "liability", "3": "expense", "4": "income",
+        }.get((self.code or "")[:1])
+        if expected_type and self.account_type and self.account_type != expected_type:
+            errors["account_type"] = "نوع الحساب لا يتطابق مع المجموعة الرئيسية لرقم الحساب."
+        if self.report_type:
+            if self.level == 1 and self.parent_id:
+                errors["parent"] = "حساب المستوى الأول لا يرتبط بحساب رئيسي."
+            if self.level and self.level > 1 and not self.parent_id:
+                errors["parent"] = "الحسابات من المستوى الثاني إلى السادس تتطلب حسابًا رئيسيًا."
+            if self.parent and self.level and self.parent.level != self.level - 1:
+                errors["parent"] = "يجب أن يكون مستوى الحساب الرئيسي أقل بدرجة واحدة من مستوى الحساب."
+            expected_ledger_type = "sub" if self.level == 6 else "main"
+            if self.ledger_type and self.ledger_type != expected_ledger_type:
+                errors["ledger_type"] = (
+                    "المستويات من 1 إلى 5 نوعها «رئيسي»، والمستوى 6 نوعه «فرعي»."
+                )
+        valid_currency_codes = {"YER", "USD", "SAR"}
+        if not isinstance(self.currencies, list) or not self.currencies:
+            errors["currencies"] = "يجب تحديد عملة واحدة على الأقل للحساب."
+        elif any(code not in valid_currency_codes for code in self.currencies):
+            errors["currencies"] = "العملات المقبولة حاليًا هي YER وUSD وSAR."
         if self.expense_category_id and self.account_type and self.account_type != "expense":
             errors["expense_category"] = (
                 "ربط تصنيف المصروف مسموح فقط لحسابات نوع «مصروفات» — "

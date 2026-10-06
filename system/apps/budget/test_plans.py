@@ -70,7 +70,9 @@ class BudgetPlanFixture(TestCase):
 
 
 class BudgetPlanValidationTests(BudgetPlanFixture):
-    def test_analytical_account_must_descend_from_main_account(self):
+    def test_linked_accounts_must_be_level_five(self):
+        self.other_account.level = 6
+        self.other_account.save(update_fields=["level"])
         line = self.make_line(analytical_account=self.other_account)
         with self.assertRaises(ValidationError) as ctx:
             line.full_clean()

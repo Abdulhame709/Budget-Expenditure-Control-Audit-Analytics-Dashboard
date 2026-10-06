@@ -65,8 +65,8 @@ class BudgetPlanSectionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["default_main_account"].queryset = Account.objects.filter(
-            is_active=True, account_type="expense",
+        self.fields["default_main_account"].queryset = Account.objects.operational().filter(
+            account_type="expense",
         ).order_by("code")
 
 
@@ -123,8 +123,8 @@ class BudgetPlanLineForm(forms.ModelForm):
     def __init__(self, *args, section=None, **kwargs):
         self.section = section or getattr(kwargs.get("instance"), "section", None)
         super().__init__(*args, **kwargs)
-        expense_accounts = Account.objects.filter(
-            is_active=True, account_type="expense",
+        expense_accounts = Account.objects.operational().filter(
+            account_type="expense",
         ).order_by("code")
         self.fields["main_account"].queryset = expense_accounts
         self.fields["analytical_account"].queryset = expense_accounts
@@ -228,8 +228,8 @@ class BudgetLineForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["department"].queryset = Department.objects.filter(is_active=True)
         self.fields["department"].empty_label = "— اختر الإدارة —"
-        self.fields["account"].queryset = Account.objects.filter(
-            account_type="expense", is_active=True
+        self.fields["account"].queryset = Account.objects.operational().filter(
+            account_type="expense"
         )
         self.fields["account"].empty_label = "— اختر حساب المصروف —"
         self.fields["expense_category"].queryset = ExpenseCategory.objects.filter(
@@ -339,8 +339,8 @@ class BudgetTemplateRowMappingForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["account"].queryset = Account.objects.filter(
-            account_type="expense", is_active=True,
+        self.fields["account"].queryset = Account.objects.operational().filter(
+            account_type="expense",
         ).order_by("code")
         self.fields["account"].required = False
         self.fields["account"].empty_label = "— غير مربوط —"

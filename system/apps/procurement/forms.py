@@ -57,8 +57,8 @@ class ProcurementForm(forms.ModelForm):
         self.fields["department"].empty_label = "— اختر الإدارة —"
         self.fields["supplier"].queryset = Supplier.objects.filter(is_active=True)
         self.fields["supplier"].empty_label = "— اختر المورّد —"
-        self.fields["account"].queryset = Account.objects.filter(
-            account_type="expense", is_active=True)
+        self.fields["account"].queryset = Account.objects.operational().filter(
+            account_type="expense")
         self.fields["account"].empty_label = "— اختر الحساب —"
         self.fields["expense_category"].queryset = ExpenseCategory.objects.filter(
             is_active=True)

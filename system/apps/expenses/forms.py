@@ -59,8 +59,8 @@ class ExpenseForm(forms.ModelForm):
         # active dimensions only
         self.fields["department"].queryset = Department.objects.filter(is_active=True)
         self.fields["department"].empty_label = "— اختر الإدارة —"
-        self.fields["account"].queryset = Account.objects.filter(
-            account_type="expense", is_active=True)
+        self.fields["account"].queryset = Account.objects.operational().filter(
+            account_type="expense")
         self.fields["account"].empty_label = "— اختر حساب المصروف —"
         self.fields["expense_category"].queryset = ExpenseCategory.objects.filter(
             is_active=True)

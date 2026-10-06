@@ -150,6 +150,8 @@ class Procurement(models.Model):
                 )
             elif not self.account.is_active:
                 errors["account"] = "الحساب المحدد غير نشط (معطّل)."
+            elif self.account.level != 5:
+                errors["account"] = "يجب اختيار حساب من المستوى الخامس."
         if self.department_id and not self.department.is_active:
             errors["department"] = "الإدارة المحددة غير نشطة (معطّل)."
         if self.supplier_id and not self.supplier.is_active:

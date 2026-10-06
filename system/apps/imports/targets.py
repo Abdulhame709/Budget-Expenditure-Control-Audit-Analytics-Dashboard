@@ -53,11 +53,18 @@ TARGETS = {
         "required": ("code", "name"),
     },
     "accounts": {
-        "fields": [_f("code", "رمز الحساب", "account code"), _f("name", "اسم الحساب", "account name"),
-                   _f("account_type", "نوع الحساب", "account type"), _f("parent", "الحساب الأب", "parent account"),
-                   _f("expense_category", "تصنيف المصروف", "expense category"),
-                   _f("is_active", "نشط", "active"), _f("notes", "ملاحظات", "notes")],
-        "required": ("code", "name", "account_type"),
+        "fields": [
+            _f("code", "رقم الحساب", "رمز الحساب", "account code"),
+            _f("currencies", "العملة", "currency", "currencies"),
+            _f("name", "اسم الحساب", "account name"),
+            _f("level", "المستوى", "level"),
+            _f("ledger_type", "النوع", "نوع الدليل", "ledger type"),
+            _f("parent", "الحساب الرئيسي", "الحساب الأب", "parent account"),
+            _f("inclusion", "التضمين", "inclusion"),
+            _f("report_type", "نوع التقرير", "report type"),
+        ],
+        "required": ("code", "currencies", "name", "level", "ledger_type",
+                     "parent", "inclusion", "report_type"),
     },
     "suppliers": {
         "fields": [_f("code", "رمز المورد", "supplier code", "vendor code"),
@@ -149,6 +156,69 @@ def _boolean(value, default=True):
     raise ValidationError("قيمة نعم/لا غير صالحة.")
 
 
+def _account_code(value):
+    code = str(value or "").strip()
+    if code.endswith(".0") and code[:-2].isdigit():
+        code = code[:-2]
+    if not code or not code.isdigit():
+        raise ValidationError("رقم الحساب: يجب أن يكون رقمًا صحيحًا دون فواصل.")
+    return code
+
+
+def _account_currencies(value):
+    aliases = {"$": "USD", "USD": "USD", "SR": "SAR", "SAR": "SAR", "YER": "YER"}
+    raw = str(value or "").upper().replace("؛", ",").replace(";", ",")
+    codes = []
+    for token in (part.strip() for part in raw.split(",")):
+        if not token:
+            continue
+        code = aliases.get(token)
+        if not code:
+            raise ValidationError(f"العملة: الرمز «{token}» غير مدعوم.")
+        if code not in codes:
+            codes.append(code)
+    if not codes:
+        raise ValidationError("العملة: يجب تحديد عملة واحدة على الأقل.")
+    return codes
+
+
+def _prepare_account(values):
+    text = lambda key: str(values.get(key, "") or "").strip()
+    code = _account_code(text("code"))
+    level = _integer(text("level"), "المستوى")
+    if level not in range(1, 7):
+        raise ValidationError("المستوى: القيمة المقبولة من 1 إلى 6.")
+    ledger_map = {"رئيسي": "main", "رئيسى": "main", "MAIN": "main",
+                  "فرعي": "sub", "فرعى": "sub", "SUB": "sub"}
+    ledger_type = ledger_map.get(text("ledger_type").upper())
+    if not ledger_type:
+        raise ValidationError("النوع: استخدم «رئيسي» أو «فرعي».")
+    report_raw = text("report_type").replace("العموميه", "العمومية")
+    report_map = {"الميزانية العمومية": "balance_sheet", "أرباح وخسائر": "profit_loss",
+                  "ارباح وخسائر": "profit_loss", "BALANCE_SHEET": "balance_sheet",
+                  "PROFIT_LOSS": "profit_loss"}
+    report_type = report_map.get(report_raw)
+    if not report_type:
+        raise ValidationError("نوع التقرير: استخدم «الميزانية العمومية» أو «أرباح وخسائر».")
+    account_type = {"1": "asset", "2": "liability", "3": "expense", "4": "income"}.get(code[0])
+    if not account_type:
+        raise ValidationError("رقم الحساب: يجب أن يبدأ بأحد الأرقام 1 أو 2 أو 3 أو 4.")
+    parent_value = text("parent")
+    parent_code = "" if parent_value in {"", "0", "0.0"} else _account_code(parent_value)
+    return {
+        "code": code,
+        "currencies": _account_currencies(text("currencies")),
+        "name": text("name"),
+        "level": level,
+        "ledger_type": ledger_type,
+        "parent_code": parent_code,
+        "inclusion": text("inclusion"),
+        "report_type": report_type,
+        "account_type": account_type,
+        "is_active": True,
+    }
+
+
 def _lookup(model, value, label, normalizer):
     wanted = normalizer(value)
     if not wanted:
@@ -195,15 +265,8 @@ def _prepare(target, values, normalizer):
                 "is_active": _boolean(text("is_active"))}
         return ExpenseCategory, data, (data["code"],), ExpenseCategory.objects.filter(code=data["code"]).exists()
     if target == "accounts":
-        parent = _lookup(Account, text("parent"), "الحساب الأب", normalizer) if text("parent") else None
-        category = _lookup(ExpenseCategory, text("expense_category"), "تصنيف المصروف", normalizer) if text("expense_category") else None
-        type_map = {"اصول": "asset", "أصول": "asset", "خصوم": "liability", "حقوق ملكيه": "equity",
-                    "حقوق ملكية": "equity", "ايرادات": "income", "إيرادات": "income", "مصروفات": "expense"}
-        account_type = type_map.get(text("account_type"), text("account_type").lower())
-        data = {"code": text("code"), "name": text("name"), "account_type": account_type,
-                "parent_id": parent.pk if parent else None, "expense_category_id": category.pk if category else None,
-                "is_active": _boolean(text("is_active")), "notes": text("notes")}
-        return Account, data, (data["code"],), Account.objects.filter(code=data["code"]).exists()
+        data = _prepare_account(values)
+        return Account, data, (data["code"],), False
     if target == "suppliers":
         data = {key: text(key) for key in ("code", "name", "contact_person", "phone", "email", "tax_number", "address", "notes")}
         data["is_active"] = _boolean(text("is_active"))
@@ -214,6 +277,8 @@ def _prepare(target, values, normalizer):
         account = _lookup(Account, text("account"), "الحساب", normalizer)
         if account.account_type != "expense":
             raise ValidationError("الحساب: سطور الموازنة تقبل حسابات المصروفات فقط.")
+        if not account.is_operational:
+            raise ValidationError("الحساب: يجب اختيار حساب نشط من المستوى الخامس.")
         category = _lookup(ExpenseCategory, text("expense_category"), "تصنيف المصروف", normalizer) if text("expense_category") else account.expense_category
         version = _integer(text("version"), "رقم النسخة", 1)
         budget_name = text("budget_name")
@@ -252,7 +317,85 @@ def _prepare(target, values, normalizer):
     return Quotation, data, key, Quotation.objects.filter(procurement=procurement, supplier=supplier).exists()
 
 
+def _validate_accounts_job(job):
+    mapping = {key: source for key, source in (job.column_map or {}).items() if source}
+    missing = [key for key in required_fields(job.target) if key not in mapping]
+    if missing:
+        labels = dict(target_fields(job.target))
+        raise ValidationError("مطابقة الأعمدة غير مكتملة: " + "، ".join(labels[key] for key in missing))
+
+    prepared = {}
+    duplicate_codes = set()
+    error_list = []
+    for row in job.rows:
+        mapped = {key: str(row["source"].get(source) or "").strip()
+                  for key, source in mapping.items()}
+        row["mapped"] = mapped
+        try:
+            ready = _prepare_account(mapped)
+            if ready["code"] in prepared:
+                duplicate_codes.add(ready["code"])
+            else:
+                prepared[ready["code"]] = (row, ready)
+            row.update({"ready": _serialize(ready), "errors": [], "warnings": [],
+                        "duplicate": False, "valid": True})
+        except ValidationError as exc:
+            row.update({"ready": {}, "errors": _errors(exc), "warnings": [],
+                        "duplicate": False, "valid": False})
+
+    database_accounts = {account.code: account for account in Account.objects.all()}
+    for code, (row, ready) in prepared.items():
+        errors = row["errors"]
+        if code in duplicate_codes:
+            errors.append("رقم الحساب مكرر داخل الملف.")
+        level = ready["level"]
+        parent_code = ready["parent_code"]
+        expected_ledger = "sub" if level == 6 else "main"
+        if ready["ledger_type"] != expected_ledger:
+            errors.append("النوع لا يتوافق مع المستوى: 1–5 رئيسي، و6 فرعي.")
+        if level == 1 and parent_code:
+            errors.append("حساب المستوى الأول يجب ألا يحتوي حسابًا رئيسيًا.")
+        if level > 1 and not parent_code:
+            errors.append("الحساب الرئيسي مطلوب للمستويات من 2 إلى 6.")
+        parent_ready = prepared.get(parent_code, (None, None))[1] if parent_code else None
+        parent_db = database_accounts.get(parent_code) if parent_code else None
+        if parent_code and not parent_ready and not parent_db:
+            errors.append(f"الحساب الرئيسي «{parent_code}» غير موجود في الملف أو قاعدة البيانات.")
+        parent_level = parent_ready["level"] if parent_ready else getattr(parent_db, "level", None)
+        parent_type = parent_ready["account_type"] if parent_ready else getattr(parent_db, "account_type", None)
+        if parent_code and parent_level is not None and parent_level != level - 1:
+            errors.append("مستوى الحساب الرئيسي يجب أن يقل بدرجة واحدة عن مستوى الحساب.")
+        if parent_code and parent_type and parent_type != ready["account_type"]:
+            errors.append("نوع الحساب لا يتطابق مع نوع الحساب الرئيسي.")
+        if code in database_accounts:
+            row["warnings"].append("الحساب موجود وسيتم تحديث بياناته.")
+        row["valid"] = not errors
+
+    valid = invalid = error_count = warning_count = 0
+    for row in job.rows:
+        if row["valid"]:
+            valid += 1
+        else:
+            invalid += 1
+        for message in row["errors"]:
+            error_count += 1
+            if len(error_list) < 300:
+                error_list.append({"row": row["index"], "message": message})
+        warning_count += len(row["warnings"])
+    job.summary = {"total": len(job.rows), "valid": valid, "invalid": invalid,
+                   "duplicate": len(duplicate_codes), "errors": error_count,
+                   "warnings": warning_count, "error_list": error_list,
+                   "warning_list": []}
+    job.status = ImportJob.STATUS_VALIDATED
+    job.log("validation_completed", **{key: job.summary[key] for key in
+            ("total", "valid", "invalid", "duplicate", "errors", "warnings")})
+    job.save()
+    return job.summary
+
+
 def validate_locked_job(job, user, normalizer):
+    if job.target == "accounts":
+        return _validate_accounts_job(job)
     mapping = {key: source for key, source in (job.column_map or {}).items() if source}
     missing = [key for key in required_fields(job.target) if key not in mapping]
     if missing:
@@ -326,9 +469,18 @@ def run_locked_job(job, user, request=None):
                  "expense_categories": ExpenseCategory, "accounts": Account, "suppliers": Supplier,
                  "procurements": Procurement, "quotations": Quotation}
     imported = 0
+    if job.target == "accounts":
+        rows.sort(key=lambda row: (int(row["ready"]["level"]), row["index"]))
     for row in rows:
         data = _deserialize(job.target, row["ready"])
-        if job.target == "budget_lines":
+        if job.target == "accounts":
+            parent_code = data.pop("parent_code", "")
+            data["parent_id"] = (Account.objects.only("pk").get(code=parent_code).pk
+                                 if parent_code else None)
+            instance = Account.objects.filter(code=data["code"]).first() or Account(code=data["code"])
+            for field, value in data.items():
+                setattr(instance, field, value)
+        elif job.target == "budget_lines":
             fy = FiscalYear.objects.get(pk=data.pop("fiscal_year_id"))
             budget_name = data.pop("budget_name")
             version_number = data.pop("version")

@@ -1,0 +1,5 @@
+frontend/
+node_modules/
+package.json
+package-lock.json
+system/static/vendor/univer/

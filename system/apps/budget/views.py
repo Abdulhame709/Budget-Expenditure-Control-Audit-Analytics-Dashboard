@@ -12,6 +12,7 @@ Enforcement:
 from __future__ import annotations
 
 import json
+import os
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -1067,6 +1068,7 @@ def template_sheet_spreadsheet(request, pk):
         "sheet": sheet,
         "template": sheet.template,
         "can_edit": has_perm(request.user, "budget.edit"),
+        "spreadsheet_asset_cdn": bool(os.environ.get("VERCEL")),
     })
 
 

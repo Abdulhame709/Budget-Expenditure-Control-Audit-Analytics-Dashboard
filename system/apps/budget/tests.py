@@ -23,7 +23,7 @@ from openpyxl import Workbook
 
 from apps.accounts.models import Role, UserRole
 from apps.governance.models import AuditLog
-from apps.budget import services
+from apps.budget import services, spreadsheet
 from apps.budget.models import (
     MONTH_FIELDS,
     Budget,
@@ -300,6 +300,102 @@ class BudgetTemplateImportTests(TestCase):
             client.get(reverse("budget:template_sheet", args=[template.sheets.first().pk])).status_code,
             200,
         )
+
+    def _sales_cost_sheet(self):
+        template = import_budget_workbook(
+            SimpleUploadedFile("budget.xlsx", sample_workbook_bytes()),
+            name="نموذج محرر الجداول", user=self.user,
+        )
+        detail = template.sheets.get(name="تفصيلي")
+        detail.name = "تفصيلي تكلفة مبيعات"
+        detail.save(update_fields=["name"])
+        row = detail.rows.get(row_number=3)
+        row.main_account = self.account
+        row.analytical_account = self.analytical_account
+        row.save(update_fields=["main_account", "analytical_account"])
+        return detail, row
+
+    def test_spreadsheet_page_and_snapshot_preserve_layout(self):
+        detail, _ = self._sales_cost_sheet()
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("budget:template_sheet_spreadsheet", args=[detail.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        response = self.client.get(
+            reverse("budget:template_sheet_spreadsheet_data", args=[detail.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        workbook = response.json()["workbook"]
+        worksheet = next(iter(workbook["sheets"].values()))
+        self.assertEqual(worksheet["mergeData"][0]["endColumn"], 3)
+        self.assertEqual(worksheet["cellData"]["2"]["3"]["f"], "=SUM(C3:C3)")
+        self.assertEqual(worksheet["columnData"]["0"]["custom"]["budgetColumnId"], detail.columns.get(column_index=1).pk)
+
+    def test_spreadsheet_save_syncs_structure_and_keeps_account_links(self):
+        detail, linked_row = self._sales_cost_sheet()
+        workbook = spreadsheet.workbook_snapshot(detail)
+        worksheet = next(iter(workbook["sheets"].values()))
+        linked_metadata = worksheet["rowData"][2]
+        linked_cells = worksheet["cellData"][2]
+        linked_cells[2]["v"] = 250
+        linked_cells[3]["f"] = "=SUM(C2:C2)"
+        worksheet["rowData"] = {
+            0: worksheet["rowData"][0],
+            1: linked_metadata,
+            2: {"h": 31},
+        }
+        worksheet["cellData"] = {
+            0: worksheet["cellData"][0],
+            1: linked_cells,
+            2: {0: {"v": "بند جديد"}, 2: {"v": 75}},
+        }
+        worksheet["columnData"][0]["w"] = 190
+        worksheet["mergeData"] = [{
+            "startRow": 0, "endRow": 0, "startColumn": 0, "endColumn": 1,
+        }]
+
+        result = spreadsheet.save_workbook_snapshot(detail, workbook)
+
+        self.assertEqual(result["rows"], 3)
+        self.assertEqual(detail.rows.count(), 3)
+        linked_row.refresh_from_db()
+        self.assertEqual(linked_row.position, 2)
+        self.assertEqual(linked_row.main_account, self.account)
+        self.assertEqual(linked_row.analytical_account, self.analytical_account)
+        changed = linked_row.cells.get(column__column_index=3)
+        self.assertEqual(changed.effective_value, "250")
+        self.assertEqual(detail.columns.get(column_index=1).width, Decimal("190"))
+        detail.refresh_from_db()
+        self.assertEqual(detail.merged_ranges, ["A1:B1"])
+        self.assertEqual(detail.rows.get(position=3).height, Decimal("31"))
+
+    def test_spreadsheet_save_requires_edit_permission(self):
+        detail, _ = self._sales_cost_sheet()
+        viewer = make_user("spreadsheet-viewer", "viewer")
+        client = Client()
+        client.force_login(viewer)
+        response = client.get(
+            reverse("budget:template_sheet_spreadsheet", args=[detail.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        response = client.post(
+            reverse("budget:template_sheet_spreadsheet_save", args=[detail.pk]),
+            data={"workbook": spreadsheet.workbook_snapshot(detail)},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_spreadsheet_trial_is_limited_to_sales_cost_sheet(self):
+        template = import_budget_workbook(
+            SimpleUploadedFile("budget.xlsx", sample_workbook_bytes()),
+            name="نموذج غير تجريبي", user=self.user,
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse(
+            "budget:template_sheet_spreadsheet", args=[template.sheets.get(name="تفصيلي").pk],
+        ))
+        self.assertEqual(response.status_code, 404)
 
 
 # ================================================================ calculations

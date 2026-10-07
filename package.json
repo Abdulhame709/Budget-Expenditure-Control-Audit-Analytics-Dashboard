@@ -1,0 +1,14 @@
+{
+  "name": "audit-budget-spreadsheet-editor",
+  "private": true,
+  "scripts": {
+    "build:spreadsheet": "esbuild ./frontend/budget-spreadsheet.js --bundle --minify --format=iife --target=es2020 --outfile=./system/static/vendor/univer/budget-spreadsheet.js"
+  },
+  "dependencies": {
+    "@univerjs/preset-sheets-core": "1.0.3",
+    "@univerjs/presets": "1.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

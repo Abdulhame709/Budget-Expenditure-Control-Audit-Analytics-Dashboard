@@ -6,6 +6,7 @@
 - [مواصفات المرحلة الأولى](BUDGET_ENGINE_PHASE_1_SPEC_AR.md)
 - [تحليل مصنفات الموازنة لعام 2025](BUDGET_WORKBOOK_ANALYSIS_2025_AR.md)
 - [تقرير تنفيذ المرحلة الأولى](BUDGET_ENGINE_PHASE_1_IMPLEMENTATION_AR.md)
+- [تجربة محرر الجداول المدمج لورقة تكلفة المبيعات](BUDGET_SPREADSHEET_PILOT_AR.md)
 - المحرك التشغيلي منفصل عن قوالب Excel المستوردة، ويولد النموذج التفصيلي والشهري والإجمالي من مصدر بيانات واحد.
 
 | | |

@@ -11,6 +11,8 @@ Enforcement:
 """
 from __future__ import annotations
 
+import json
+
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
@@ -27,7 +29,7 @@ from apps.accounts.permissions import has_perm, require_permission
 from apps.governance.models import AuditLog
 from apps.reference.services import changes_between, log_action, snapshot
 
-from . import forms, services
+from . import forms, services, spreadsheet
 from .models import (
     MONTH_FIELDS,
     Budget,
@@ -1046,7 +1048,51 @@ def template_sheet(request, pk):
         "page_obj": page,
         "sheet_form": sheet_form,
         "can_edit": can_edit,
+        "spreadsheet_trial": spreadsheet.is_trial_sheet(sheet),
     })
+
+
+def _spreadsheet_trial_sheet(pk):
+    sheet = get_object_or_404(
+        BudgetTemplateSheet.objects.select_related("template"), pk=pk,
+    )
+    if not spreadsheet.is_trial_sheet(sheet):
+        raise Http404("محرر الجداول التجريبي متاح حاليًا لورقة تكلفة مبيعات فقط.")
+    return sheet
+
+
+def template_sheet_spreadsheet(request, pk):
+    sheet = _spreadsheet_trial_sheet(pk)
+    return render(request, "budget/template_spreadsheet.html", {
+        "sheet": sheet,
+        "template": sheet.template,
+        "can_edit": has_perm(request.user, "budget.edit"),
+    })
+
+
+@require_GET
+def template_sheet_spreadsheet_data(request, pk):
+    sheet = _spreadsheet_trial_sheet(pk)
+    return JsonResponse({"workbook": spreadsheet.workbook_snapshot(sheet)})
+
+
+@require_POST
+@require_permission("budget.edit")
+def template_sheet_spreadsheet_save(request, pk):
+    sheet = _spreadsheet_trial_sheet(pk)
+    try:
+        payload = json.loads(request.body or b"{}")
+        result = spreadsheet.save_workbook_snapshot(sheet, payload.get("workbook"))
+    except (json.JSONDecodeError, spreadsheet.SpreadsheetPayloadError) as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+    log_action(
+        action="entity_updated",
+        entity_type="budgettemplatesheet",
+        entity_id=sheet.pk,
+        diff={"spreadsheet": result},
+        request=request,
+    )
+    return JsonResponse(result)
 
 
 def template_sheet_monthly_output(request, pk):

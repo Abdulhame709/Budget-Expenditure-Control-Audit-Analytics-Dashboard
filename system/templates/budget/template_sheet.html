@@ -29,6 +29,7 @@
     <div class="text-muted small">نموذج مرن مستورد من Excel · {{ sheet.max_row }} صف × {{ sheet.max_column }} عمود</div>
   </div>
   <div class="d-flex flex-wrap gap-2 template-screen-toolbar">
+    {% if spreadsheet_trial %}<a class="btn btn-success" href="{% url 'budget:template_sheet_spreadsheet' sheet.pk %}">فتح محرر Excel التجريبي</a>{% endif %}
     <button class="btn btn-outline-secondary" type="button" onclick="window.print()">طباعة</button>
     <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_monthly_output' sheet.pk %}">النموذج الشهري</a>
     <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_summary_output' sheet.pk %}">الإجماليات</a>

@@ -1,5 +1,5 @@
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
-import UniverPresetSheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
+import UniverPresetSheetsCoreArSA from '@univerjs/preset-sheets-core/locales/ar-SA';
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
 import '@univerjs/preset-sheets-core/lib/index.css';
 
@@ -42,9 +42,9 @@ async function startEditor() {
   setStatus('جارٍ تحميل النموذج…', 'info');
   const payload = await requestJson(dataUrl);
   const { univer, univerAPI } = createUniver({
-    locale: LocaleType.EN_US,
+    locale: LocaleType.AR_SA,
     locales: {
-      [LocaleType.EN_US]: mergeLocales(UniverPresetSheetsCoreEnUS),
+      [LocaleType.AR_SA]: mergeLocales(UniverPresetSheetsCoreArSA),
     },
     presets: [
       UniverSheetsCorePreset({

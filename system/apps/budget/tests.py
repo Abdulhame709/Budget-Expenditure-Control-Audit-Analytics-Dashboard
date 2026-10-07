@@ -328,6 +328,8 @@ class BudgetTemplateImportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         workbook = response.json()["workbook"]
         worksheet = next(iter(workbook["sheets"].values()))
+        self.assertEqual(workbook["locale"], "arSA")
+        self.assertEqual(worksheet["rightToLeft"], 1)
         self.assertEqual(worksheet["mergeData"][0]["endColumn"], 3)
         self.assertEqual(worksheet["cellData"]["2"]["3"]["f"], "=SUM(C3:C3)")
         self.assertEqual(worksheet["columnData"]["0"]["custom"]["budgetColumnId"], detail.columns.get(column_index=1).pk)

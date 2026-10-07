@@ -142,7 +142,7 @@ def workbook_snapshot(sheet: BudgetTemplateSheet) -> dict:
     return {
         "id": workbook_id,
         "name": sheet.template.name,
-        "locale": "enUS",
+        "locale": "arSA",
         "styles": {},
         "sheetOrder": [worksheet_id],
         "sheets": {

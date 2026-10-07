@@ -29,7 +29,9 @@ from apps.budget.models import (
     Budget,
     BudgetLine,
     BudgetTemplate,
+    BudgetTemplateCell,
     BudgetTemplateColumn,
+    BudgetTemplateRow,
     BudgetVersion,
 )
 from apps.budget.template_import import import_budget_workbook, refresh_budget_workbook
@@ -212,6 +214,68 @@ class BudgetTemplateImportTests(TestCase):
         self.assertEqual(row.main_account, self.account)
         self.assertEqual(row.analytical_account, self.analytical_account)
         self.assertEqual(row.cells.get(coordinate="C3").raw_value, "400")
+
+    def test_total_row_can_sum_previous_data_rows(self):
+        template = import_budget_workbook(
+            SimpleUploadedFile("budget.xlsx", sample_workbook_bytes()),
+            name="نموذج إجمالي مرن", user=self.user,
+        )
+        detail = template.sheets.get(name="تفصيلي")
+        annual = detail.columns.get(column_letter="D")
+        annual.role = BudgetTemplateColumn.ROLE_ANNUAL
+        annual.save(update_fields=["role"])
+        source = detail.rows.get(row_number=3)
+        second = BudgetTemplateRow.objects.create(
+            sheet=detail, row_number=4, position=4,
+            row_type=BudgetTemplateRow.TYPE_DATA, label="بيانات ثانية",
+        )
+        BudgetTemplateCell.objects.create(
+            row=second, column=annual, coordinate="D4", raw_value="50",
+            is_editable=True,
+        )
+        total = BudgetTemplateRow.objects.create(
+            sheet=detail, row_number=5, position=5,
+            row_type=BudgetTemplateRow.TYPE_SUBTOTAL, label="إجمالي فرعي",
+            is_included=False,
+        )
+        BudgetTemplateCell.objects.create(
+            row=total, column=annual, coordinate="D5", is_editable=True,
+        )
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("budget:template_sheet", args=[detail.pk]),
+            {"action": "sum_previous", "row_id": total.pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        total_cell = total.cells.get(column=annual)
+        self.assertEqual(total_cell.formula, "=SUM(D3,D4)")
+        self.assertEqual(SheetRuntime(detail).value("D5"), Decimal("150"))
+        self.assertEqual(source.position, 3)
+
+    def test_template_rows_move_and_resequence_after_delete(self):
+        template = import_budget_workbook(
+            SimpleUploadedFile("budget.xlsx", sample_workbook_bytes()),
+            name="نموذج ترتيب", user=self.user,
+        )
+        detail = template.sheets.get(name="تفصيلي")
+        rows = list(detail.rows.order_by("position"))
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("budget:template_sheet", args=[detail.pk]),
+            {"action": "move_up", "row_id": rows[-1].pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        ordered = list(detail.rows.order_by("position").values_list("pk", flat=True))
+        self.assertEqual(ordered[-2:], [rows[-1].pk, rows[-2].pk])
+        response = self.client.post(
+            reverse("budget:template_sheet", args=[detail.pk]),
+            {"action": "delete_row", "row_id": rows[0].pk},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            list(detail.rows.order_by("position").values_list("position", flat=True)),
+            list(range(1, detail.rows.count() + 1)),
+        )
 
     def test_template_pages_and_upload_require_expected_permissions(self):
         client = Client()

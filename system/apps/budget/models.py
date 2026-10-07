@@ -852,6 +852,7 @@ class BudgetTemplateRow(models.Model):
         verbose_name="الورقة",
     )
     row_number = models.PositiveIntegerField("رقم الصف")
+    position = models.PositiveIntegerField("ترتيب العرض", default=0)
     row_type = models.CharField(
         "نوع الصف", max_length=12, choices=TYPE_CHOICES, default=TYPE_DATA,
     )
@@ -878,7 +879,7 @@ class BudgetTemplateRow(models.Model):
         db_table = "budget_template_rows"
         verbose_name = "صف نموذج موازنة"
         verbose_name_plural = "صفوف نماذج الموازنة"
-        ordering = ["sheet", "row_number"]
+        ordering = ["sheet", "position", "row_number", "pk"]
         constraints = [
             models.UniqueConstraint(
                 fields=["sheet", "row_number"], name="uq_budget_template_row",

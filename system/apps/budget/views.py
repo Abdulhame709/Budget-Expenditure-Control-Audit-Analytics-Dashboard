@@ -672,6 +672,70 @@ def template_delete(request, pk):
     return redirect("budget:template_list")
 
 
+def _normalize_template_row_positions(sheet):
+    rows = list(sheet.rows.order_by("position", "row_number", "pk"))
+    changed = []
+    for position, row in enumerate(rows, start=1):
+        if row.position != position:
+            row.position = position
+            changed.append(row)
+    if changed:
+        BudgetTemplateRow.objects.bulk_update(changed, ["position"])
+    return rows
+
+
+def _sum_previous_template_rows(sheet, target_row, columns):
+    rows = _normalize_template_row_positions(sheet)
+    target_index = next(
+        (index for index, row in enumerate(rows) if row.pk == target_row.pk), None,
+    )
+    if target_index is None:
+        return 0, 0
+    boundaries = {
+        BudgetTemplateRow.TYPE_TITLE,
+        BudgetTemplateRow.TYPE_HEADER,
+        BudgetTemplateRow.TYPE_SUBTOTAL,
+        BudgetTemplateRow.TYPE_TOTAL,
+    }
+    source_rows = []
+    for row in reversed(rows[:target_index]):
+        if row.row_type in boundaries:
+            break
+        if row.row_type == BudgetTemplateRow.TYPE_DATA:
+            source_rows.append(row)
+    source_rows.reverse()
+    if not source_rows:
+        return 0, 0
+
+    sum_columns = [
+        column for column in columns
+        if column.role == BudgetTemplateColumn.ROLE_ANNUAL
+        or column.role.startswith("month_")
+    ]
+    changed_cells = 0
+    for column in sum_columns:
+        coordinates = list(BudgetTemplateCell.objects.filter(
+            row__in=source_rows, column=column,
+        ).order_by("row__position").values_list("coordinate", flat=True))
+        if not coordinates:
+            continue
+        formula = f"=SUM({','.join(coordinates)})"
+        cell, _ = BudgetTemplateCell.objects.get_or_create(
+            row=target_row,
+            column=column,
+            defaults={"coordinate": f"{column.column_letter}{target_row.row_number}"},
+        )
+        cell.raw_value = formula
+        cell.formula = formula
+        cell.override_value = None
+        cell.is_editable = False
+        cell.save(update_fields=[
+            "raw_value", "formula", "override_value", "is_editable",
+        ])
+        changed_cells += 1
+    return len(source_rows), changed_cells
+
+
 def template_sheet(request, pk):
     sheet = get_object_or_404(
         BudgetTemplateSheet.objects.select_related("template"), pk=pk,
@@ -691,12 +755,17 @@ def template_sheet(request, pk):
     if request.method == "POST" and not can_edit:
         raise PermissionDenied("لا تملك صلاحية تعديل نماذج الموازنة.")
 
-    if action in {"add_row", "duplicate_row", "delete_row"}:
+    if action in {
+        "add_row", "duplicate_row", "delete_row", "move_up", "move_down",
+        "sum_previous",
+    }:
         with transaction.atomic():
+            _normalize_template_row_positions(sheet)
             if action == "add_row":
                 row_number = (sheet.rows.aggregate(value=models.Max("row_number"))["value"] or 0) + 1
+                position = (sheet.rows.aggregate(value=models.Max("position"))["value"] or 0) + 1
                 new_row = BudgetTemplateRow.objects.create(
-                    sheet=sheet, row_number=row_number,
+                    sheet=sheet, row_number=row_number, position=position,
                     row_type=BudgetTemplateRow.TYPE_DATA,
                     label="صف جديد", is_included=True,
                 )
@@ -715,13 +784,56 @@ def template_sheet(request, pk):
                 )
                 if action == "delete_row":
                     source_row.delete()
+                    _normalize_template_row_positions(sheet)
                     messages.success(request, "تم حذف الصف من النموذج.")
+                elif action in {"move_up", "move_down"}:
+                    direction = -1 if action == "move_up" else 1
+                    adjacent = sheet.rows.filter(
+                        position=source_row.position + direction,
+                    ).first()
+                    if adjacent:
+                        source_position = source_row.position
+                        source_row.position = adjacent.position
+                        adjacent.position = source_position
+                        BudgetTemplateRow.objects.bulk_update(
+                            [source_row, adjacent], ["position"],
+                        )
+                        messages.success(request, "تم تغيير ترتيب الصف.")
+                    else:
+                        messages.info(request, "الصف موجود بالفعل عند حد الترتيب.")
+                elif action == "sum_previous":
+                    if source_row.row_type not in {
+                        BudgetTemplateRow.TYPE_SUBTOTAL,
+                        BudgetTemplateRow.TYPE_TOTAL,
+                    }:
+                        messages.error(
+                            request,
+                            "أمر جمع السابق متاح لصف الإجمالي أو الإجمالي الفرعي فقط.",
+                        )
+                    else:
+                        source_count, cell_count = _sum_previous_template_rows(
+                            sheet, source_row, columns,
+                        )
+                        if cell_count:
+                            messages.success(
+                                request,
+                                f"تم ربط الإجمالي تلقائيًا بـ {source_count} صف سابق في {cell_count} عمود مالي.",
+                            )
+                        else:
+                            messages.warning(
+                                request,
+                                "لم توجد صفوف بيانات سابقة أو أعمدة شهرية/سنوية محددة للجمع.",
+                            )
                 else:
                     from openpyxl.formula.translate import Translator
 
                     row_number = (sheet.rows.aggregate(value=models.Max("row_number"))["value"] or 0) + 1
+                    BudgetTemplateRow.objects.filter(
+                        sheet=sheet, position__gt=source_row.position,
+                    ).update(position=models.F("position") + 1)
                     new_row = BudgetTemplateRow.objects.create(
                         sheet=sheet, row_number=row_number,
+                        position=source_row.position + 1,
                         row_type=source_row.row_type, label=source_row.label,
                         account=source_row.account,
                         main_account=source_row.main_account,
@@ -751,7 +863,7 @@ def template_sheet(request, pk):
                             is_editable=source_cell.is_editable,
                         ))
                     BudgetTemplateCell.objects.bulk_create(copied_cells)
-                    messages.success(request, "تم نسخ الصف إلى نهاية الورقة.")
+                    messages.success(request, "تم نسخ الصف أسفل الصف الأصلي.")
         return redirect(page_url)
 
     if action == "reset_page":
@@ -797,16 +909,22 @@ def template_sheet(request, pk):
                 for row_form in row_forms:
                     if row_form.has_changed():
                         mapped_row = row_form.save(commit=False)
-                        mapped_row.account = (
-                            mapped_row.analytical_account or mapped_row.main_account
-                        )
+                        if mapped_row.row_type == BudgetTemplateRow.TYPE_DATA:
+                            mapped_row.account = (
+                                mapped_row.analytical_account or mapped_row.main_account
+                            )
+                        else:
+                            mapped_row.account = None
+                            mapped_row.main_account = None
+                            mapped_row.analytical_account = None
+                            mapped_row.is_included = False
                         mapped_row.save()
                         changed_rows += 1
                 allowed_cells = {
                     cell.pk: cell
                     for row in page.object_list
                     for cell in row.cells.all()
-                    if cell.is_editable
+                    if not cell.formula
                 }
                 for key, value in request.POST.items():
                     if not key.startswith("cell-") or not key[5:].isdigit():
@@ -894,7 +1012,9 @@ def template_sheet(request, pk):
         return ";".join(styles)
 
     rows = []
-    for row, row_form in zip(page.object_list, row_forms):
+    for display_number, (row, row_form) in enumerate(
+        zip(page.object_list, row_forms), start=page.start_index(),
+    ):
         cells_by_column = {cell.column_id: cell for cell in row.cells.all()}
         rendered_cells = []
         for column in columns:
@@ -915,6 +1035,7 @@ def template_sheet(request, pk):
             "row": row,
             "form": row_form,
             "cells": rendered_cells,
+            "display_number": display_number,
         })
     return render(request, "budget/template_sheet.html", {
         "sheet": sheet,

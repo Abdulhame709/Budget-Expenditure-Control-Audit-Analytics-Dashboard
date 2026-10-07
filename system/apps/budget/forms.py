@@ -690,9 +690,13 @@ class BudgetTemplateSheetForm(forms.ModelForm):
 class BudgetTemplateRowMappingForm(forms.ModelForm):
     class Meta:
         model = BudgetTemplateRow
-        fields = ["row_type", "main_account", "analytical_account", "is_included"]
+        fields = ["row_type", "label", "main_account", "analytical_account", "is_included"]
         widgets = {
             "row_type": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "label": forms.TextInput(attrs={
+                "class": "form-control form-control-sm js-template-row-label",
+                "placeholder": "اكتب عنوان الصف أو بيان الإجمالي",
+            }),
             "main_account": forms.Select(attrs={"class": "form-select form-select-sm js-template-main"}),
             "analytical_account": forms.Select(attrs={"class": "form-select form-select-sm js-template-analytical"}),
             "is_included": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -717,6 +721,14 @@ class BudgetTemplateRowMappingForm(forms.ModelForm):
         self.fields["analytical_account"].queryset = analytical
         self.fields["analytical_account"].required = False
         self.fields["analytical_account"].empty_label = "— تحليلي مستوى 6 —"
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("row_type") != BudgetTemplateRow.TYPE_DATA:
+            cleaned["main_account"] = None
+            cleaned["analytical_account"] = None
+            cleaned["is_included"] = False
+        return cleaned
 
 
 class BudgetTemplateColumnRoleForm(forms.ModelForm):

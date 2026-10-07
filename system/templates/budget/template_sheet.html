@@ -1,6 +1,22 @@
 {% extends "base.html" %}
 {% block title %}{{ sheet.name }}{% endblock %}
 {% block content %}
+<style>
+  .template-row-label-wrap { min-width: 260px; }
+  .template-runtime-cell[hidden], .template-mapping-cell[hidden] { display: none !important; }
+  .template-row-title .js-template-row-label { font-weight: 700; text-align: center; }
+  .template-row-total .js-template-row-label,
+  .template-row-subtotal .js-template-row-label { font-weight: 700; }
+  @media print {
+    nav, .template-screen-toolbar, .template-help, .template-admin-column,
+    .template-row-actions, .pagination, footer { display: none !important; }
+    .template-runtime-grid { max-height: none !important; overflow: visible !important; border: 0 !important; }
+    .template-runtime-grid table { min-width: 100% !important; font-size: 10pt; }
+    .template-runtime-grid thead, .template-row-data .js-primary-cell { display: none !important; }
+    .template-runtime-grid input { border: 0 !important; background: transparent !important; padding: 0 !important; }
+  }
+</style>
+
 <nav aria-label="breadcrumb"><ol class="breadcrumb">
   <li class="breadcrumb-item"><a href="{% url 'budget:template_list' %}">نماذج الموازنة</a></li>
   <li class="breadcrumb-item"><a href="{% url 'budget:template_detail' template.pk %}">{{ template.name }}</a></li>
@@ -12,21 +28,22 @@
     <h1 class="h4 mb-1">{{ sheet.name }}</h1>
     <div class="text-muted small">نموذج مرن مستورد من Excel · {{ sheet.max_row }} صف × {{ sheet.max_column }} عمود</div>
   </div>
-  <div class="d-flex flex-wrap gap-2">
+  <div class="d-flex flex-wrap gap-2 template-screen-toolbar">
+    <button class="btn btn-outline-secondary" type="button" onclick="window.print()">طباعة</button>
     <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_monthly_output' sheet.pk %}">النموذج الشهري</a>
     <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_summary_output' sheet.pk %}">الإجماليات</a>
     <span class="badge text-bg-primary align-self-center">{{ sheet.get_purpose_display }}</span>
   </div>
 </div>
 
-<div class="alert alert-info py-2">
-  الخلايا البيضاء القابلة للتحرير تحفظ كتعديلات فوق ملف Excel الأصلي، والخلايا التي تحمل الرمز <strong>ƒ</strong> تُعاد حسابها تلقائيًا. اربط صفوف البيانات بحساب رئيسي مستوى 5 ثم حساب تحليلي مستوى 6 لتدخل في المخرجات الشهرية والإجمالية.
+<div class="alert alert-info py-2 template-help">
+  صف <strong>العنوان</strong> يعرض بيانًا مدمجًا، وصفوف <strong>الإجمالي</strong> تخفي الحسابات ويمكن ربطها بالصفوف السابقة بزر <strong>∑</strong>. أرقام الإجراء وترتيبها مستقلة عن مراجع Excel حتى لا تنكسر الصيغ.
 </div>
 
 <form method="post" id="template-grid-form">
   {% csrf_token %}
   <input type="hidden" name="action" value="save_grid">
-  <div class="card card-body mb-3">
+  <div class="card card-body mb-3 template-screen-toolbar">
     <div class="row align-items-end g-2">
       <div class="col-12 col-md-3"><label class="form-label">وظيفة الورقة</label>{{ sheet_form.purpose }}</div>
       {% if can_edit %}
@@ -41,16 +58,15 @@
     <table class="table table-sm table-bordered align-middle mb-0" style="min-width:max-content">
       <thead class="table-light position-sticky top-0" style="z-index:4">
         <tr>
-          <th class="position-sticky start-0 bg-light" style="z-index:5;min-width:70px">إجراء</th>
-          <th style="min-width:115px">نوع الصف</th>
-          <th style="min-width:205px">الحساب الرئيسي</th>
-          <th style="min-width:220px">الحساب التحليلي</th>
-          <th style="min-width:65px">إدراج</th>
+          <th class="position-sticky start-0 bg-light template-admin-column" style="z-index:5;min-width:118px">إجراء</th>
+          <th class="template-admin-column" style="min-width:115px">نوع الصف</th>
+          <th class="template-admin-column" style="min-width:205px">الحساب الرئيسي / بيان الصف</th>
+          <th class="template-admin-column" style="min-width:220px">الحساب التحليلي</th>
+          <th class="template-admin-column" style="min-width:65px">إدراج</th>
           {% for column_form in column_forms %}
           {% with column=column_form.instance %}
-          <th style="min-width:{% if column.width %}{{ column.width|floatformat:0 }}0{% else %}120{% endif %}px" title="{{ column.title }}">
-            <div>{{ column.column_letter }}{% if column.title %} · {{ column.title|truncatechars:24 }}{% endif %}</div>
-            {% if can_edit %}<div class="mt-1">{{ column_form.role }}</div>{% else %}<small>{{ column.get_role_display }}</small>{% endif %}
+          <th style="min-width:{% if column.width %}{{ column.width|floatformat:0 }}0{% else %}120{% endif %}px">
+            {% if can_edit %}{{ column_form.role }}{% else %}<span>{{ column.get_role_display }}</span>{% endif %}
           </th>
           {% endwith %}
           {% endfor %}
@@ -58,28 +74,40 @@
       </thead>
       <tbody>
         {% for item in rows %}
-        <tr class="{% if item.row.row_type == 'total' or item.row.row_type == 'subtotal' %}table-warning{% elif item.row.row_type == 'header' or item.row.row_type == 'title' %}table-secondary{% endif %}"{% if item.row.height %} style="height:{{ item.row.height }}px"{% endif %}>
-          <td class="position-sticky start-0 bg-white text-nowrap" style="z-index:2">
-            <span class="badge text-bg-light">{{ item.row.row_number }}</span>
+        <tr data-row-type="{{ item.row.row_type }}"
+            data-full-colspan="{{ columns|length|add:'3' }}"
+            class="template-row template-row-{{ item.row.row_type }} {% if item.row.row_type == 'total' or item.row.row_type == 'subtotal' %}table-warning{% elif item.row.row_type == 'header' or item.row.row_type == 'title' %}table-secondary{% endif %}"
+            {% if item.row.height %}style="height:{{ item.row.height }}px"{% endif %}>
+          <td class="position-sticky start-0 bg-white text-nowrap template-admin-column template-row-actions" style="z-index:2">
+            <span class="badge text-bg-light">{{ item.display_number }}</span>
             {% if can_edit %}
+            <button class="btn btn-sm btn-link p-1" type="submit" name="action" value="move_up" onclick="this.form.row_id.value='{{ item.row.pk }}'" title="تحريك لأعلى">↑</button>
+            <button class="btn btn-sm btn-link p-1" type="submit" name="action" value="move_down" onclick="this.form.row_id.value='{{ item.row.pk }}'" title="تحريك لأسفل">↓</button>
             <button class="btn btn-sm btn-link p-1" type="submit" name="action" value="duplicate_row" onclick="this.form.row_id.value='{{ item.row.pk }}'" title="نسخ الصف">⧉</button>
             <button class="btn btn-sm btn-link text-danger p-1" type="submit" name="action" value="delete_row" onclick="this.form.row_id.value='{{ item.row.pk }}';return confirm('حذف هذا الصف نهائيًا؟')" title="حذف الصف">×</button>
+            <button class="btn btn-sm btn-link text-success p-1 js-sum-previous" type="submit" name="action" value="sum_previous" onclick="this.form.row_id.value='{{ item.row.pk }}'" title="جمع صفوف البيانات السابقة">∑</button>
             {% endif %}
           </td>
-          <td>{{ item.form.row_type }}</td>
-          <td>{{ item.form.main_account }}{{ item.form.main_account.errors }}</td>
-          <td>{{ item.form.analytical_account }}{{ item.form.analytical_account.errors }}</td>
-          <td class="text-center">{{ item.form.is_included }}</td>
+          <td class="template-admin-column">{{ item.form.row_type }}</td>
+          <td class="template-mapping-cell js-primary-cell"
+              {% if item.row.row_type == 'title' or item.row.row_type == 'note' %}colspan="{{ columns|length|add:'3' }}"{% elif item.row.row_type != 'data' %}colspan="3"{% endif %}>
+            <div class="js-account-wrap" {% if item.row.row_type != 'data' %}hidden{% endif %}>{{ item.form.main_account }}{{ item.form.main_account.errors }}</div>
+            <div class="template-row-label-wrap js-label-wrap" {% if item.row.row_type == 'data' %}hidden{% endif %}>{{ item.form.label }}{{ item.form.label.errors }}</div>
+          </td>
+          <td class="template-admin-column template-mapping-cell js-analytical-cell" {% if item.row.row_type != 'data' %}hidden{% endif %}>{{ item.form.analytical_account }}{{ item.form.analytical_account.errors }}</td>
+          <td class="text-center template-admin-column template-mapping-cell js-included-cell" {% if item.row.row_type != 'data' %}hidden{% endif %}>{{ item.form.is_included }}</td>
           {% for entry in item.cells %}
             {% if not entry.skip %}
-            <td title="{{ entry.coordinate }}{% if entry.cell.formula %} · {{ entry.cell.formula }}{% endif %}"
-                {% if entry.merge.colspan %} colspan="{{ entry.merge.colspan }}"{% endif %}
-                {% if entry.merge.rowspan %} rowspan="{{ entry.merge.rowspan }}"{% endif %}
+            <td class="template-runtime-cell"
+                {% if item.row.row_type == 'title' or item.row.row_type == 'note' %}hidden{% endif %}
+                title="{{ entry.coordinate }}{% if entry.cell.formula %} · {{ entry.cell.formula }}{% endif %}"
+                {% if entry.merge.colspan %}colspan="{{ entry.merge.colspan }}"{% endif %}
+                {% if entry.merge.rowspan %}rowspan="{{ entry.merge.rowspan }}"{% endif %}
                 style="{{ entry.style }};min-width:105px">
               {% if entry.cell %}
                 {% if entry.cell.formula %}
                   <span class="text-primary fw-bold">ƒ</span> <span dir="ltr">{{ entry.value }}</span>
-                {% elif can_edit and entry.cell.is_editable %}
+                {% elif can_edit %}
                   <input class="form-control form-control-sm template-cell-input{% if entry.cell.override_value != None %} border-warning{% endif %}"
                          data-cell-id="{{ entry.cell.pk }}" data-original="{{ entry.cell.raw_value }}"
                          value="{{ entry.value }}" dir="auto" autocomplete="off">
@@ -111,14 +139,45 @@
 <script>
 (() => {
   const form = document.getElementById('template-grid-form');
+  const tbody = form.querySelector('tbody');
   const analyticalEndpoint = "{% url 'budget:plan_analytical_accounts' %}";
+
+  function applyRowType(row, type) {
+    const primary = row.querySelector('.js-primary-cell');
+    const accountWrap = row.querySelector('.js-account-wrap');
+    const labelWrap = row.querySelector('.js-label-wrap');
+    const analytical = row.querySelector('.js-analytical-cell');
+    const included = row.querySelector('.js-included-cell');
+    const runtimeCells = row.querySelectorAll('.template-runtime-cell');
+    const sumButton = row.querySelector('.js-sum-previous');
+    const isData = type === 'data';
+    const hideRuntime = type === 'title' || type === 'note';
+
+    row.dataset.rowType = type;
+    row.className = `template-row template-row-${type}`;
+    if (type === 'total' || type === 'subtotal') row.classList.add('table-warning');
+    if (type === 'title' || type === 'header') row.classList.add('table-secondary');
+    accountWrap.hidden = !isData;
+    labelWrap.hidden = isData;
+    analytical.hidden = !isData;
+    included.hidden = !isData;
+    runtimeCells.forEach(cell => { cell.hidden = hideRuntime; });
+    primary.colSpan = isData ? 1 : (hideRuntime ? Number(row.dataset.fullColspan) : 3);
+    if (sumButton) sumButton.hidden = !(type === 'total' || type === 'subtotal');
+  }
+
+  document.querySelectorAll('.template-row').forEach(row => applyRowType(row, row.dataset.rowType));
   document.querySelectorAll('.template-cell-input').forEach(input => {
     input.addEventListener('input', () => {
       input.name = `cell-${input.dataset.cellId}`;
       input.classList.toggle('border-warning', input.value !== input.dataset.original);
     });
   });
-  document.querySelector('tbody').addEventListener('change', async event => {
+  tbody.addEventListener('change', async event => {
+    if (event.target.name.endsWith('-row_type')) {
+      applyRowType(event.target.closest('tr'), event.target.value);
+      return;
+    }
     if (!event.target.classList.contains('js-template-main')) return;
     const row = event.target.closest('tr');
     const analytical = row.querySelector('.js-template-analytical');
@@ -130,7 +189,7 @@
   });
   form.addEventListener('submit', event => {
     const submitter = event.submitter;
-    if (submitter && ['duplicate_row', 'delete_row', 'add_row', 'reset_page'].includes(submitter.value)) return;
+    if (submitter && ['duplicate_row', 'delete_row', 'add_row', 'reset_page', 'move_up', 'move_down', 'sum_previous'].includes(submitter.value)) return;
     document.querySelectorAll('.template-cell-input').forEach(input => {
       if (input.value !== input.dataset.original || input.classList.contains('border-warning')) {
         input.name = `cell-${input.dataset.cellId}`;

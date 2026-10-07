@@ -6,59 +6,137 @@
   <li class="breadcrumb-item"><a href="{% url 'budget:template_detail' template.pk %}">{{ template.name }}</a></li>
   <li class="breadcrumb-item active">{{ sheet.name }}</li>
 </ol></nav>
+
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
   <div>
     <h1 class="h4 mb-1">{{ sheet.name }}</h1>
-    <div class="text-muted small">{{ sheet.max_row }} صف × {{ sheet.max_column }} عمود · {{ sheet.merged_ranges|length }} نطاق مدمج</div>
+    <div class="text-muted small">نموذج مرن مستورد من Excel · {{ sheet.max_row }} صف × {{ sheet.max_column }} عمود</div>
   </div>
-  <span class="badge text-bg-primary">{{ sheet.get_purpose_display }}</span>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_monthly_output' sheet.pk %}">النموذج الشهري</a>
+    <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_summary_output' sheet.pk %}">الإجماليات</a>
+    <span class="badge text-bg-primary align-self-center">{{ sheet.get_purpose_display }}</span>
+  </div>
 </div>
 
-<form method="post">
+<div class="alert alert-info py-2">
+  الخلايا البيضاء القابلة للتحرير تحفظ كتعديلات فوق ملف Excel الأصلي، والخلايا التي تحمل الرمز <strong>ƒ</strong> تُعاد حسابها تلقائيًا. اربط صفوف البيانات بحساب رئيسي مستوى 5 ثم حساب تحليلي مستوى 6 لتدخل في المخرجات الشهرية والإجمالية.
+</div>
+
+<form method="post" id="template-grid-form">
   {% csrf_token %}
+  <input type="hidden" name="action" value="save_grid">
   <div class="card card-body mb-3">
     <div class="row align-items-end g-2">
-      <div class="col-12 col-md-5"><label class="form-label">وظيفة الورقة</label>{{ sheet_form.purpose }}</div>
-      <div class="col"><p class="small text-muted mb-0">حدد هل الورقة تفصيلية، شهرية، إجمالية، أو مساندة. ويمكن ربط صفوف البيانات بالحسابات التحليلية والرئيسية.</p></div>
-      {% if can_edit %}<div class="col-auto"><button class="btn btn-primary">حفظ التهيئة</button></div>{% endif %}
+      <div class="col-12 col-md-3"><label class="form-label">وظيفة الورقة</label>{{ sheet_form.purpose }}</div>
+      {% if can_edit %}
+      <div class="col-auto"><button class="btn btn-primary" type="submit">حفظ جميع التعديلات</button></div>
+      <div class="col-auto"><button class="btn btn-outline-success" type="submit" name="action" value="add_row">+ إضافة صف</button></div>
+      <div class="col-auto"><button class="btn btn-outline-warning" type="submit" name="action" value="reset_page" onclick="return confirm('استعادة القيم الأصلية لجميع خلايا الصفحة الحالية؟')">استعادة الأصل</button></div>
+      {% endif %}
     </div>
   </div>
 
-  <div class="table-responsive border rounded bg-white" style="max-height:68vh">
-    <table class="table table-sm table-bordered align-middle mb-0" style="min-width:1400px">
-      <thead class="table-light position-sticky top-0" style="z-index:2">
+  <div class="table-responsive border rounded bg-white template-runtime-grid" style="max-height:72vh">
+    <table class="table table-sm table-bordered align-middle mb-0" style="min-width:max-content">
+      <thead class="table-light position-sticky top-0" style="z-index:4">
         <tr>
-          <th style="min-width:55px">#</th>
-          <th style="min-width:130px">نوع الصف</th>
-          <th style="min-width:230px">الحساب المرتبط</th>
-          <th style="min-width:80px">إدراج</th>
-          {% for column in columns %}<th title="{{ column.title }}">{{ column.column_letter }}<div class="fw-normal text-muted text-truncate" style="max-width:170px">{{ column.title }}</div></th>{% endfor %}
+          <th class="position-sticky start-0 bg-light" style="z-index:5;min-width:70px">إجراء</th>
+          <th style="min-width:115px">نوع الصف</th>
+          <th style="min-width:205px">الحساب الرئيسي</th>
+          <th style="min-width:220px">الحساب التحليلي</th>
+          <th style="min-width:65px">إدراج</th>
+          {% for column_form in column_forms %}
+          {% with column=column_form.instance %}
+          <th style="min-width:{% if column.width %}{{ column.width|floatformat:0 }}0{% else %}120{% endif %}px" title="{{ column.title }}">
+            <div>{{ column.column_letter }}{% if column.title %} · {{ column.title|truncatechars:24 }}{% endif %}</div>
+            {% if can_edit %}<div class="mt-1">{{ column_form.role }}</div>{% else %}<small>{{ column.get_role_display }}</small>{% endif %}
+          </th>
+          {% endwith %}
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
         {% for item in rows %}
-        <tr class="{% if item.row.row_type == 'total' %}table-warning{% elif item.row.row_type == 'header' or item.row.row_type == 'title' %}table-secondary{% endif %}">
-          <td>{{ item.row.row_number }}</td>
-          <td>{{ item.form.row_type }}</td>
-          <td>{{ item.form.account }}</td>
-          <td class="text-center">{{ item.form.is_included }}</td>
-          {% for cell in item.cells %}
-          <td dir="auto" title="{% if cell %}{{ cell.coordinate }}{% if cell.formula %} · {{ cell.formula }}{% endif %}{% endif %}"{% if cell and cell.style_metadata.bold %} class="fw-bold"{% endif %}>
-            {% if cell %}{% if cell.formula %}<span class="text-primary">ƒ</span> {% endif %}{{ cell.raw_value|truncatechars:80 }}{% endif %}
+        <tr class="{% if item.row.row_type == 'total' or item.row.row_type == 'subtotal' %}table-warning{% elif item.row.row_type == 'header' or item.row.row_type == 'title' %}table-secondary{% endif %}"{% if item.row.height %} style="height:{{ item.row.height }}px"{% endif %}>
+          <td class="position-sticky start-0 bg-white text-nowrap" style="z-index:2">
+            <span class="badge text-bg-light">{{ item.row.row_number }}</span>
+            {% if can_edit %}
+            <button class="btn btn-sm btn-link p-1" type="submit" name="action" value="duplicate_row" onclick="this.form.row_id.value='{{ item.row.pk }}'" title="نسخ الصف">⧉</button>
+            <button class="btn btn-sm btn-link text-danger p-1" type="submit" name="action" value="delete_row" onclick="this.form.row_id.value='{{ item.row.pk }}';return confirm('حذف هذا الصف نهائيًا؟')" title="حذف الصف">×</button>
+            {% endif %}
           </td>
+          <td>{{ item.form.row_type }}</td>
+          <td>{{ item.form.main_account }}{{ item.form.main_account.errors }}</td>
+          <td>{{ item.form.analytical_account }}{{ item.form.analytical_account.errors }}</td>
+          <td class="text-center">{{ item.form.is_included }}</td>
+          {% for entry in item.cells %}
+            {% if not entry.skip %}
+            <td title="{{ entry.coordinate }}{% if entry.cell.formula %} · {{ entry.cell.formula }}{% endif %}"
+                {% if entry.merge.colspan %} colspan="{{ entry.merge.colspan }}"{% endif %}
+                {% if entry.merge.rowspan %} rowspan="{{ entry.merge.rowspan }}"{% endif %}
+                style="{{ entry.style }};min-width:105px">
+              {% if entry.cell %}
+                {% if entry.cell.formula %}
+                  <span class="text-primary fw-bold">ƒ</span> <span dir="ltr">{{ entry.value }}</span>
+                {% elif can_edit and entry.cell.is_editable %}
+                  <input class="form-control form-control-sm template-cell-input{% if entry.cell.override_value != None %} border-warning{% endif %}"
+                         data-cell-id="{{ entry.cell.pk }}" data-original="{{ entry.cell.raw_value }}"
+                         value="{{ entry.value }}" dir="auto" autocomplete="off">
+                {% else %}
+                  <span dir="auto">{{ entry.value }}</span>
+                {% endif %}
+              {% endif %}
+            </td>
+            {% endif %}
           {% endfor %}
         </tr>
         {% empty %}<tr><td colspan="99" class="text-center text-muted py-4">لا توجد صفوف قابلة للعرض.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
+  <input type="hidden" name="row_id" value="">
 </form>
 
 {% if page_obj.paginator.num_pages > 1 %}
 <nav class="mt-3"><ul class="pagination justify-content-center">
   {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">السابق</a></li>{% endif %}
-  <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+  <li class="page-item disabled"><span class="page-link">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span></li>
   {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">التالي</a></li>{% endif %}
 </ul></nav>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const form = document.getElementById('template-grid-form');
+  const analyticalEndpoint = "{% url 'budget:plan_analytical_accounts' %}";
+  document.querySelectorAll('.template-cell-input').forEach(input => {
+    input.addEventListener('input', () => {
+      input.name = `cell-${input.dataset.cellId}`;
+      input.classList.toggle('border-warning', input.value !== input.dataset.original);
+    });
+  });
+  document.querySelector('tbody').addEventListener('change', async event => {
+    if (!event.target.classList.contains('js-template-main')) return;
+    const row = event.target.closest('tr');
+    const analytical = row.querySelector('.js-template-analytical');
+    analytical.innerHTML = '<option value="">— تحليلي مستوى 6 —</option>';
+    if (!event.target.value) return;
+    const response = await fetch(`${analyticalEndpoint}?main_account=${encodeURIComponent(event.target.value)}`);
+    const data = await response.json();
+    data.results.forEach(item => analytical.add(new Option(item.text, item.id)));
+  });
+  form.addEventListener('submit', event => {
+    const submitter = event.submitter;
+    if (submitter && ['duplicate_row', 'delete_row', 'add_row', 'reset_page'].includes(submitter.value)) return;
+    document.querySelectorAll('.template-cell-input').forEach(input => {
+      if (input.value !== input.dataset.original || input.classList.contains('border-warning')) {
+        input.name = `cell-${input.dataset.cellId}`;
+      }
+    });
+  });
+})();
+</script>
 {% endblock %}

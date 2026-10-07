@@ -22,6 +22,7 @@ from .models import (
     BudgetPlanSalaryComponent,
     BudgetPlanSection,
     BudgetTemplate,
+    BudgetTemplateColumn,
     BudgetTemplateRow,
     BudgetTemplateSheet,
     BudgetVersion,
@@ -649,6 +650,24 @@ class BudgetTemplateImportForm(forms.Form):
         return workbook
 
 
+class BudgetTemplateRefreshForm(forms.Form):
+    workbook = forms.FileField(
+        label="نسخة Excel الجديدة",
+        widget=forms.ClearableFileInput(
+            attrs={"class": "form-control", "accept": ".xlsx,.xlsm"}
+        ),
+    )
+
+    def clean_workbook(self):
+        workbook = self.cleaned_data["workbook"]
+        suffix = workbook.name.lower().rsplit(".", 1)[-1]
+        if suffix not in {"xlsx", "xlsm"}:
+            raise forms.ValidationError("الملفات المدعومة هي XLSX وXLSM فقط.")
+        if workbook.size > 25 * 1024 * 1024:
+            raise forms.ValidationError("حجم الملف يتجاوز الحد المسموح (25 ميجابايت).")
+        return workbook
+
+
 class BudgetTemplateForm(forms.ModelForm):
     class Meta:
         model = BudgetTemplate
@@ -671,17 +690,37 @@ class BudgetTemplateSheetForm(forms.ModelForm):
 class BudgetTemplateRowMappingForm(forms.ModelForm):
     class Meta:
         model = BudgetTemplateRow
-        fields = ["row_type", "account", "is_included"]
+        fields = ["row_type", "main_account", "analytical_account", "is_included"]
         widgets = {
             "row_type": forms.Select(attrs={"class": "form-select form-select-sm"}),
-            "account": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "main_account": forms.Select(attrs={"class": "form-select form-select-sm js-template-main"}),
+            "analytical_account": forms.Select(attrs={"class": "form-select form-select-sm js-template-analytical"}),
             "is_included": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["account"].queryset = Account.objects.operational().filter(
+        self.fields["main_account"].queryset = Account.objects.main_accounts().filter(
             account_type="expense",
         ).order_by("code")
-        self.fields["account"].required = False
-        self.fields["account"].empty_label = "— غير مربوط —"
+        self.fields["main_account"].required = False
+        self.fields["main_account"].empty_label = "— رئيسي مستوى 5 —"
+        main_id = (
+            self.data.get(self.add_prefix("main_account"))
+            if self.is_bound else self.instance.main_account_id
+        )
+        analytical = Account.objects.none()
+        if str(main_id or "").isdigit():
+            analytical = Account.objects.analytical_for(main_id).filter(
+                account_type="expense",
+            ).order_by("code")
+        self.fields["analytical_account"].queryset = analytical
+        self.fields["analytical_account"].required = False
+        self.fields["analytical_account"].empty_label = "— تحليلي مستوى 6 —"
+
+
+class BudgetTemplateColumnRoleForm(forms.ModelForm):
+    class Meta:
+        model = BudgetTemplateColumn
+        fields = ["role"]
+        widgets = {"role": forms.Select(attrs={"class": "form-select form-select-sm"})}

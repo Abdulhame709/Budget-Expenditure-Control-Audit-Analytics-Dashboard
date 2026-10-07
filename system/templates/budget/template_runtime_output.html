@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb"><ol class="breadcrumb">
+  <li class="breadcrumb-item"><a href="{% url 'budget:template_detail' template.pk %}">{{ template.name }}</a></li>
+  <li class="breadcrumb-item"><a href="{% url 'budget:template_sheet' sheet.pk %}">{{ sheet.name }}</a></li>
+  <li class="breadcrumb-item active">{{ title }}</li>
+</ol></nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h1 class="h4 mb-1">{{ title }}</h1><div class="text-muted">{{ sheet.name }}</div></div>
+  <a class="btn btn-outline-secondary" href="{% url 'budget:template_sheet' sheet.pk %}">العودة للنموذج</a>
+</div>
+<div class="table-responsive card border-0 shadow-sm">
+  <table class="table table-sm table-bordered align-middle mb-0">
+    <thead class="table-light"><tr>
+      <th>#</th><th>الحساب الرئيسي</th>{% if not summary %}<th>الحساب التحليلي</th>{% endif %}
+      <th>يناير</th><th>فبراير</th><th>مارس</th><th>أبريل</th><th>مايو</th><th>يونيو</th>
+      <th>يوليو</th><th>أغسطس</th><th>سبتمبر</th><th>أكتوبر</th><th>نوفمبر</th><th>ديسمبر</th><th>الإجمالي</th>
+    </tr></thead>
+    <tbody>
+      {% for item in rows %}<tr>
+        <td>{% if item.row %}{{ item.row.row_number }}{% else %}{{ forloop.counter }}{% endif %}</td>
+        <td>{{ item.main_account }}</td>{% if not summary %}<td>{{ item.analytical_account }}</td>{% endif %}
+        {% for month, amount in item.months.items %}<td dir="ltr">{{ amount }}</td>{% endfor %}
+        <td dir="ltr"><strong>{{ item.annual_amount }}</strong></td>
+      </tr>{% empty %}
+      <tr><td colspan="16" class="text-center text-muted py-4">لا توجد صفوف مربوطة بحسابات تحليلية، أو لم يُحدد عمود الإجمالي السنوي/الأشهر بعد.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -36,12 +36,15 @@ from .models import (
     BudgetPlanLine,
     BudgetPlanSection,
     BudgetTemplate,
+    BudgetTemplateCell,
+    BudgetTemplateColumn,
     BudgetTemplateRow,
     BudgetTemplateSheet,
     BudgetVersion,
 )
-from .template_import import import_budget_workbook
+from .template_import import import_budget_workbook, refresh_budget_workbook
 from .plan_line_import import PlanLineImportError, parse_plan_lines_workbook
+from . import template_runtime
 
 
 # ---------------------------------------------------------------- list
@@ -590,13 +593,42 @@ def template_detail(request, pk):
     )
     sheets = template.sheets.annotate(
         populated_rows=Count("rows", distinct=True),
-        mapped_rows=Count("rows", filter=Q(rows__account__isnull=False)),
+        mapped_rows=Count(
+            "rows", filter=Q(rows__analytical_account__isnull=False), distinct=True,
+        ),
     )
     return render(request, "budget/template_detail.html", {
         "template": template,
         "sheets": sheets,
         "can_edit": has_perm(request.user, "budget.edit"),
+        "refresh_form": forms.BudgetTemplateRefreshForm(),
     })
+
+
+@require_permission("budget.edit")
+@require_POST
+def template_refresh(request, pk):
+    template = get_object_or_404(BudgetTemplate, pk=pk)
+    form = forms.BudgetTemplateRefreshForm(request.POST, request.FILES)
+    if not form.is_valid():
+        messages.error(request, "تعذر قراءة نسخة Excel الجديدة. تحقق من الملف وحجمه.")
+        return redirect("budget:template_detail", pk=template.pk)
+    try:
+        stats = refresh_budget_workbook(
+            template, form.cleaned_data["workbook"], user=request.user,
+        )
+    except Exception:
+        messages.error(request, "تعذر تحديث النموذج من Excel. تحقق من بنية الملف ثم أعد المحاولة.")
+        return redirect("budget:template_detail", pk=template.pk)
+    log_action(
+        action="budget_template_imported", entity_type="budgettemplate",
+        entity_id=template.pk, diff={"refresh": True, **stats}, request=request,
+    )
+    messages.success(
+        request,
+        f"تم تحديث {stats['sheets']} ورقة و{stats['rows']} صفًا مع الحفاظ على روابط الحسابات للصفوف المطابقة.",
+    )
+    return redirect("budget:template_detail", pk=template.pk)
 
 
 @require_permission("budget.edit")
@@ -645,36 +677,148 @@ def template_sheet(request, pk):
         BudgetTemplateSheet.objects.select_related("template"), pk=pk,
     )
     columns = list(sheet.columns.all())
-    row_queryset = sheet.rows.select_related("account").prefetch_related(
+    row_queryset = sheet.rows.select_related(
+        "account", "main_account", "analytical_account",
+    ).prefetch_related(
         "cells__column"
     )
-    paginator = Paginator(row_queryset, 100)
+    paginator = Paginator(row_queryset, 60)
     page = paginator.get_page(request.GET.get("page"))
     can_edit = has_perm(request.user, "budget.edit")
+    page_url = f"{reverse('budget:template_sheet', args=[sheet.pk])}?page={page.number}"
+
+    action = request.POST.get("action") if request.method == "POST" else ""
+    if request.method == "POST" and not can_edit:
+        raise PermissionDenied("لا تملك صلاحية تعديل نماذج الموازنة.")
+
+    if action in {"add_row", "duplicate_row", "delete_row"}:
+        with transaction.atomic():
+            if action == "add_row":
+                row_number = (sheet.rows.aggregate(value=models.Max("row_number"))["value"] or 0) + 1
+                new_row = BudgetTemplateRow.objects.create(
+                    sheet=sheet, row_number=row_number,
+                    row_type=BudgetTemplateRow.TYPE_DATA,
+                    label="صف جديد", is_included=True,
+                )
+                BudgetTemplateCell.objects.bulk_create([
+                    BudgetTemplateCell(
+                        row=new_row, column=column,
+                        coordinate=f"{column.column_letter}{row_number}",
+                        is_editable=True,
+                    )
+                    for column in columns
+                ])
+                messages.success(request, "تمت إضافة صف جديد في نهاية الورقة.")
+            else:
+                source_row = get_object_or_404(
+                    BudgetTemplateRow, pk=request.POST.get("row_id"), sheet=sheet,
+                )
+                if action == "delete_row":
+                    source_row.delete()
+                    messages.success(request, "تم حذف الصف من النموذج.")
+                else:
+                    from openpyxl.formula.translate import Translator
+
+                    row_number = (sheet.rows.aggregate(value=models.Max("row_number"))["value"] or 0) + 1
+                    new_row = BudgetTemplateRow.objects.create(
+                        sheet=sheet, row_number=row_number,
+                        row_type=source_row.row_type, label=source_row.label,
+                        account=source_row.account,
+                        main_account=source_row.main_account,
+                        analytical_account=source_row.analytical_account,
+                        is_included=source_row.is_included,
+                        height=source_row.height,
+                    )
+                    copied_cells = []
+                    for source_cell in source_row.cells.select_related("column"):
+                        coordinate = f"{source_cell.column.column_letter}{row_number}"
+                        formula = source_cell.formula
+                        if formula:
+                            try:
+                                formula = Translator(
+                                    formula, origin=source_cell.coordinate,
+                                ).translate_formula(coordinate)
+                            except Exception:
+                                pass
+                        copied_cells.append(BudgetTemplateCell(
+                            row=new_row, column=source_cell.column,
+                            coordinate=coordinate,
+                            raw_value=formula or source_cell.effective_value,
+                            formula=formula,
+                            data_type=source_cell.data_type,
+                            number_format=source_cell.number_format,
+                            style_metadata=source_cell.style_metadata,
+                            is_editable=source_cell.is_editable,
+                        ))
+                    BudgetTemplateCell.objects.bulk_create(copied_cells)
+                    messages.success(request, "تم نسخ الصف إلى نهاية الورقة.")
+        return redirect(page_url)
+
+    if action == "reset_page":
+        BudgetTemplateCell.objects.filter(row__in=page.object_list).update(
+            override_value=None,
+        )
+        messages.success(request, "تمت استعادة القيم الأصلية لخلايا الصفحة الحالية.")
+        return redirect(page_url)
 
     if request.method == "POST":
-        if not can_edit:
-            raise PermissionDenied("لا تملك صلاحية تعديل نماذج الموازنة.")
         sheet_form = forms.BudgetTemplateSheetForm(
             request.POST, instance=sheet, prefix="sheet",
         )
+        column_forms = [
+            forms.BudgetTemplateColumnRoleForm(
+                request.POST, instance=column, prefix=f"column-{column.pk}",
+            )
+            for column in columns
+        ]
         row_forms = [
             forms.BudgetTemplateRowMappingForm(
                 request.POST, instance=row, prefix=f"row-{row.pk}"
             )
             for row in page.object_list
         ]
-        if sheet_form.is_valid() and all(form.is_valid() for form in row_forms):
+        if (
+            sheet_form.is_valid()
+            and all(form.is_valid() for form in column_forms)
+            and all(form.is_valid() for form in row_forms)
+        ):
             with transaction.atomic():
                 changed_rows = 0
+                changed_columns = 0
+                changed_cells = 0
                 old_purpose = sheet.purpose
                 updated_sheet = sheet_form.save(commit=False)
                 updated_sheet.updated_by = request.user
                 updated_sheet.save()
+                for column_form in column_forms:
+                    if column_form.has_changed():
+                        column_form.save()
+                        changed_columns += 1
                 for row_form in row_forms:
                     if row_form.has_changed():
-                        row_form.save()
+                        mapped_row = row_form.save(commit=False)
+                        mapped_row.account = (
+                            mapped_row.analytical_account or mapped_row.main_account
+                        )
+                        mapped_row.save()
                         changed_rows += 1
+                allowed_cells = {
+                    cell.pk: cell
+                    for row in page.object_list
+                    for cell in row.cells.all()
+                    if cell.is_editable
+                }
+                for key, value in request.POST.items():
+                    if not key.startswith("cell-") or not key[5:].isdigit():
+                        continue
+                    cell = allowed_cells.get(int(key[5:]))
+                    if cell is None:
+                        continue
+                    override = None if value == cell.raw_value else value
+                    if cell.override_value != override:
+                        cell.override_value = override
+                        cell.save(update_fields=["override_value"])
+                        changed_cells += 1
             log_action(
                 action="budget_template_mapping_updated",
                 entity_type="budgettemplatesheet",
@@ -682,38 +826,127 @@ def template_sheet(request, pk):
                 diff={
                     "purpose": {"before": old_purpose, "after": sheet.purpose},
                     "changed_rows": changed_rows,
+                    "changed_columns": changed_columns,
+                    "changed_cells": changed_cells,
                     "page": page.number,
                 },
                 request=request,
             )
             messages.success(
                 request,
-                f"تم حفظ تصنيف الورقة وربط {changed_rows} صفًا.",
+                f"تم حفظ الورقة: {changed_cells} خلية، و{changed_rows} ربط صف، و{changed_columns} وظيفة عمود.",
             )
-            return redirect(f"{reverse('budget:template_sheet', args=[sheet.pk])}?page={page.number}")
+            return redirect(page_url)
     else:
         sheet_form = forms.BudgetTemplateSheetForm(instance=sheet, prefix="sheet")
+        column_forms = [
+            forms.BudgetTemplateColumnRoleForm(
+                instance=column, prefix=f"column-{column.pk}",
+            )
+            for column in columns
+        ]
         row_forms = [
             forms.BudgetTemplateRowMappingForm(instance=row, prefix=f"row-{row.pk}")
             for row in page.object_list
         ]
 
+    from openpyxl.utils.cell import range_boundaries
+
+    merge_anchors = {}
+    merged_covered = set()
+    for merged_range in sheet.merged_ranges:
+        try:
+            min_col, min_row, max_col, max_row = range_boundaries(merged_range)
+        except ValueError:
+            continue
+        anchor = f"{columns[min_col - 1].column_letter}{min_row}" if min_col <= len(columns) else ""
+        merge_anchors[anchor] = {
+            "colspan": max_col - min_col + 1,
+            "rowspan": max_row - min_row + 1,
+        }
+        for row_number in range(min_row, max_row + 1):
+            for column_number in range(min_col, max_col + 1):
+                coordinate = f"{columns[column_number - 1].column_letter}{row_number}" if column_number <= len(columns) else ""
+                if coordinate and coordinate != anchor:
+                    merged_covered.add(coordinate)
+
+    runtime = template_runtime.SheetRuntime(sheet)
+
+    def cell_style(cell):
+        if cell is None:
+            return ""
+        metadata = cell.style_metadata or {}
+        styles = []
+        if metadata.get("bold"):
+            styles.append("font-weight:700")
+        if metadata.get("italic"):
+            styles.append("font-style:italic")
+        font_color = str(metadata.get("font_color") or "")[-6:]
+        fill_color = str(metadata.get("fill_color") or "")[-6:]
+        if len(font_color) == 6 and font_color != "000000":
+            styles.append(f"color:#{font_color}")
+        if len(fill_color) == 6 and fill_color not in {"000000", "FFFFFF"}:
+            styles.append(f"background-color:#{fill_color}")
+        if metadata.get("horizontal"):
+            styles.append(f"text-align:{metadata['horizontal']}")
+        if metadata.get("wrap_text"):
+            styles.append("white-space:normal")
+        return ";".join(styles)
+
     rows = []
     for row, row_form in zip(page.object_list, row_forms):
         cells_by_column = {cell.column_id: cell for cell in row.cells.all()}
+        rendered_cells = []
+        for column in columns:
+            cell = cells_by_column.get(column.pk)
+            coordinate = cell.coordinate if cell else f"{column.column_letter}{row.row_number}"
+            rendered_cells.append({
+                "cell": cell,
+                "coordinate": coordinate,
+                "skip": coordinate in merged_covered,
+                "merge": merge_anchors.get(coordinate, {}),
+                "value": (
+                    request.POST.get(f"cell-{cell.pk}", runtime.display_value(cell))
+                    if cell else ""
+                ),
+                "style": cell_style(cell),
+            })
         rows.append({
             "row": row,
             "form": row_form,
-            "cells": [cells_by_column.get(column.pk) for column in columns],
+            "cells": rendered_cells,
         })
     return render(request, "budget/template_sheet.html", {
         "sheet": sheet,
         "template": sheet.template,
         "columns": columns,
+        "column_forms": column_forms,
         "rows": rows,
         "page_obj": page,
         "sheet_form": sheet_form,
         "can_edit": can_edit,
+    })
+
+
+def template_sheet_monthly_output(request, pk):
+    sheet = get_object_or_404(BudgetTemplateSheet.objects.select_related("template"), pk=pk)
+    return render(request, "budget/template_runtime_output.html", {
+        "sheet": sheet,
+        "template": sheet.template,
+        "rows": template_runtime.template_monthly_output(sheet),
+        "title": "التوزيع الشهري للنموذج المرن",
+        "summary": False,
+    })
+
+
+def template_sheet_summary_output(request, pk):
+    sheet = get_object_or_404(BudgetTemplateSheet.objects.select_related("template"), pk=pk)
+    return render(request, "budget/template_runtime_output.html", {
+        "sheet": sheet,
+        "template": sheet.template,
+        "rows": template_runtime.template_summary_output(sheet),
+        "title": "إجماليات الحسابات الرئيسية للنموذج المرن",
+        "summary": True,
     })
 
 

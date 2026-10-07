@@ -860,6 +860,14 @@ class BudgetTemplateRow(models.Model):
         Account, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="budget_template_rows", verbose_name="الحساب المرتبط",
     )
+    main_account = models.ForeignKey(
+        Account, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="budget_template_main_rows", verbose_name="الحساب الرئيسي",
+    )
+    analytical_account = models.ForeignKey(
+        Account, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="budget_template_analytical_rows", verbose_name="الحساب التحليلي",
+    )
     is_included = models.BooleanField("يدخل في الموازنة", default=True)
     height = models.DecimalField(
         "ارتفاع الصف", max_digits=8, decimal_places=2, null=True, blank=True,
@@ -880,6 +888,25 @@ class BudgetTemplateRow(models.Model):
     def __str__(self):
         return f"{self.sheet.name} — صف {self.row_number}"
 
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.main_account and (
+            not self.main_account.is_main_account
+            or self.main_account.account_type != "expense"
+        ):
+            errors["main_account"] = "يجب اختيار حساب مصروف رئيسي من المستوى الخامس."
+        if self.analytical_account:
+            if (
+                not self.analytical_account.is_analytical_account
+                or self.analytical_account.account_type != "expense"
+            ):
+                errors["analytical_account"] = "يجب اختيار حساب مصروف تحليلي من المستوى السادس."
+            elif self.analytical_account.parent_id != self.main_account_id:
+                errors["analytical_account"] = "الحساب التحليلي لا يتبع الحساب الرئيسي المحدد."
+        if errors:
+            raise ValidationError(errors)
+
 
 class BudgetTemplateCell(models.Model):
     row = models.ForeignKey(
@@ -892,6 +919,11 @@ class BudgetTemplateCell(models.Model):
     )
     coordinate = models.CharField("مرجع الخلية", max_length=20)
     raw_value = models.TextField("القيمة", blank=True)
+    override_value = models.TextField(
+        "القيمة المعدلة", null=True, blank=True,
+        help_text="تظل القيمة الأصلية محفوظة ويمكن الرجوع إليها بإزالة التعديل.",
+    )
+    is_editable = models.BooleanField("قابلة للتحرير", default=False)
     formula = models.TextField("الصيغة", blank=True)
     data_type = models.CharField("نوع البيانات", max_length=12, blank=True)
     number_format = models.CharField("تنسيق الرقم", max_length=120, blank=True)
@@ -910,3 +942,7 @@ class BudgetTemplateCell(models.Model):
 
     def __str__(self):
         return f"{self.row.sheet.name}!{self.coordinate}"
+
+    @property
+    def effective_value(self):
+        return self.raw_value if self.override_value is None else self.override_value

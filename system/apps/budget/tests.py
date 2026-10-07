@@ -29,9 +29,11 @@ from apps.budget.models import (
     Budget,
     BudgetLine,
     BudgetTemplate,
+    BudgetTemplateColumn,
     BudgetVersion,
 )
-from apps.budget.template_import import import_budget_workbook
+from apps.budget.template_import import import_budget_workbook, refresh_budget_workbook
+from apps.budget.template_runtime import SheetRuntime, template_monthly_output
 from apps.reference.models import (
     Account,
     Currency,
@@ -122,6 +124,10 @@ class BudgetTemplateImportTests(TestCase):
         self.account = Account.objects.create(
             code="5101", name="مصروفات تنقّل", account_type="expense",
         )
+        self.analytical_account = Account.objects.create(
+            code="510101", name="تنقّل تحليلي", account_type="expense",
+            level=6, ledger_type="sub", parent=self.account,
+        )
         self.user = User.objects.create_superuser(
             username="template-admin", email="template@example.com", password=PW,
         )
@@ -145,6 +151,67 @@ class BudgetTemplateImportTests(TestCase):
             template.sheets.get(name="الإجماليات").purpose,
             "summary",
         )
+
+    def test_runtime_recalculates_formula_after_edit_and_builds_monthly_output(self):
+        template = import_budget_workbook(
+            SimpleUploadedFile("budget.xlsx", sample_workbook_bytes()),
+            name="نموذج حي", user=self.user,
+        )
+        detail = template.sheets.get(name="تفصيلي")
+        row = detail.rows.get(row_number=3)
+        row.main_account = self.account
+        row.analytical_account = self.analytical_account
+        row.save()
+        january = detail.columns.get(column_letter="C")
+        january.role = "month_01"
+        january.save(update_fields=["role"])
+        annual = detail.columns.get(column_letter="D")
+        annual.role = BudgetTemplateColumn.ROLE_ANNUAL
+        annual.save(update_fields=["role"])
+        input_cell = row.cells.get(coordinate="C3")
+        formula_cell = row.cells.get(coordinate="D3")
+        self.assertEqual(SheetRuntime(detail).value("D3"), Decimal("100"))
+        input_cell.override_value = "250"
+        input_cell.save(update_fields=["override_value"])
+        self.assertEqual(SheetRuntime(detail).value("D3"), Decimal("250"))
+        output = template_monthly_output(detail)
+        self.assertEqual(len(output), 1)
+        self.assertEqual(output[0]["months"][1], Decimal("250.00"))
+        self.assertEqual(output[0]["annual_amount"], Decimal("250.00"))
+
+    def test_refresh_preserves_account_mapping_and_replaces_source_values(self):
+        template = import_budget_workbook(
+            SimpleUploadedFile("budget.xlsx", sample_workbook_bytes()),
+            name="نموذج متجدد", user=self.user,
+        )
+        row = template.sheets.get(name="تفصيلي").rows.get(row_number=3)
+        row.main_account = self.account
+        row.analytical_account = self.analytical_account
+        row.save()
+        updated = Workbook()
+        sheet = updated.active
+        sheet.title = "تفصيلي"
+        sheet["A1"] = "نموذج الموازنة التفصيلي"
+        sheet["A2"] = "رقم الحساب"
+        sheet["B2"] = "اسم الحساب"
+        sheet["C2"] = "يناير"
+        sheet["D2"] = "الإجمالي السنوي"
+        sheet["A3"] = "5101"
+        sheet["B3"] = "مصروفات تنقّل"
+        sheet["C3"] = 400
+        sheet["D3"] = "=SUM(C3:C3)"
+        content = BytesIO()
+        updated.save(content)
+        updated.close()
+        refresh_budget_workbook(
+            template,
+            SimpleUploadedFile("updated.xlsx", content.getvalue()),
+            user=self.user,
+        )
+        row.refresh_from_db()
+        self.assertEqual(row.main_account, self.account)
+        self.assertEqual(row.analytical_account, self.analytical_account)
+        self.assertEqual(row.cells.get(coordinate="C3").raw_value, "400")
 
     def test_template_pages_and_upload_require_expected_permissions(self):
         client = Client()

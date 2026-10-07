@@ -181,7 +181,10 @@ URL_PERMISSIONS.update({
     "budget:template_list": "budget.view",
     "budget:template_detail": "budget.view",
     "budget:template_sheet": "budget.view",
+    "budget:template_sheet_monthly_output": "budget.view",
+    "budget:template_sheet_summary_output": "budget.view",
     "budget:template_import": "budget.edit",
+    "budget:template_refresh": "budget.edit",
     "budget:template_edit": "budget.edit",
     "budget:template_delete": "budget.edit",
 })

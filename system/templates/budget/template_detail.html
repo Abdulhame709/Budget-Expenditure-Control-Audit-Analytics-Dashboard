@@ -21,6 +21,20 @@
   {% endif %}
 </div>
 
+{% if can_edit %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6">استيراد نسخة Excel جديدة إلى نفس التبويبات</h2>
+    <p class="small text-muted">يتم تحديث القيم والتنسيقات والصيغ حسب اسم الورقة ورقم الصف والخلية، مع الحفاظ على روابط الحسابات للصفوف المطابقة. ستُمسح تعديلات الخلايا اليدوية عند استبدالها بقيم الملف الجديد.</p>
+    <form method="post" enctype="multipart/form-data" action="{% url 'budget:template_refresh' template.pk %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-lg-8"><label class="form-label">{{ refresh_form.workbook.label }}</label>{{ refresh_form.workbook }}</div>
+      <div class="col-auto"><button class="btn btn-success" type="submit" onclick="return confirm('تحديث النموذج من ملف Excel الجديد؟')">تحديث نفس النموذج</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
   {% for sheet in sheets %}
   <div class="col-12 col-lg-6 col-xl-4">

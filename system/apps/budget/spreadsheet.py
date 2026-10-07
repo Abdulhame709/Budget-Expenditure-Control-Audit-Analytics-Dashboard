@@ -14,15 +14,8 @@ from .models import (
 )
 
 
-TRIAL_SHEET_NAME = "تكلفة مبيعات"
-
-
 class SpreadsheetPayloadError(ValueError):
     pass
-
-
-def is_trial_sheet(sheet: BudgetTemplateSheet) -> bool:
-    return TRIAL_SHEET_NAME in (sheet.name or "").strip()
 
 
 def _number(value):

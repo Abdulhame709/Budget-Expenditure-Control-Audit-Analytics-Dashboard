@@ -3,6 +3,68 @@ import UniverPresetSheetsCoreArSA from '@univerjs/preset-sheets-core/locales/ar-
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
 import '@univerjs/preset-sheets-core/lib/index.css';
 
+function installRtlCanvasTextPatch() {
+  const prototype = window.CanvasRenderingContext2D?.prototype;
+  if (!prototype || prototype.__budgetRtlTextPatched) return;
+  window.__budgetRtlSpreadsheetActive = true;
+
+  const shouldMirrorText = (context) => (
+    window.__budgetRtlSpreadsheetActive
+    && (
+      !context.canvas?.id
+      || (
+        context.canvas.id.startsWith('univer-sheet-main-canvas_')
+        && context.canvas.closest('#budget-spreadsheet-app')
+      )
+    )
+  );
+  const wrapTextMethod = (methodName) => {
+    const original = prototype[methodName];
+    if (typeof original !== 'function') return;
+    prototype[methodName] = function budgetRtlCanvasText(text, x, y, maxWidth) {
+      if (!shouldMirrorText(this)) {
+        return maxWidth === undefined
+          ? original.call(this, text, x, y)
+          : original.call(this, text, x, y, maxWidth);
+      }
+      const measuredWidth = this.measureText(String(text)).width;
+      const textWidth = maxWidth === undefined ? measuredWidth : Math.min(measuredWidth, maxWidth);
+      const direction = this.direction === 'rtl' ? 'rtl' : 'ltr';
+      const align = this.textAlign;
+      const alignsLeft = align === 'left' || (align === 'start' && direction === 'ltr') || (align === 'end' && direction === 'rtl');
+      const alignsRight = align === 'right' || (align === 'end' && direction === 'ltr') || (align === 'start' && direction === 'rtl');
+      const textCenter = alignsLeft ? x + (textWidth / 2) : (alignsRight ? x - (textWidth / 2) : x);
+      this.save();
+      this.translate(textCenter * 2, 0);
+      this.scale(-1, 1);
+      const result = maxWidth === undefined
+        ? original.call(this, text, x, y)
+        : original.call(this, text, x, y, maxWidth);
+      this.restore();
+      return result;
+    };
+  };
+
+  wrapTextMethod('fillText');
+  wrapTextMethod('strokeText');
+  Object.defineProperty(prototype, '__budgetRtlTextPatched', { value: true });
+}
+
+function enableRtlWorksheetSurface(root) {
+  const apply = () => {
+    const canvas = root.querySelector('canvas[id^="univer-sheet-main-canvas_"]');
+    const surface = canvas?.parentElement;
+    if (!surface) return false;
+    surface.classList.add('budget-spreadsheet-rtl-surface');
+    return true;
+  };
+  if (apply()) return;
+  const observer = new MutationObserver(() => {
+    if (apply()) observer.disconnect();
+  });
+  observer.observe(root, { childList: true, subtree: true });
+}
+
 function getCsrfToken() {
   return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
 }
@@ -39,6 +101,7 @@ async function startEditor() {
   const saveUrl = root.dataset.saveUrl;
   const canEdit = root.dataset.canEdit === 'true';
 
+  installRtlCanvasTextPatch();
   setStatus('جارٍ تحميل النموذج…', 'info');
   const payload = await requestJson(dataUrl);
   const { univer, univerAPI } = createUniver({
@@ -53,6 +116,7 @@ async function startEditor() {
     ],
   });
   univerAPI.createWorkbook(payload.workbook);
+  enableRtlWorksheetSurface(root);
   window.budgetSpreadsheetEditor = { univer, univerAPI };
   setStatus(canEdit ? 'جاهز للتحرير' : 'عرض فقط', canEdit ? 'success' : 'secondary');
 
@@ -77,7 +141,14 @@ async function startEditor() {
     }
   });
 
-  window.addEventListener('beforeunload', () => univer.dispose(), { once: true });
+  document.getElementById('print-spreadsheet')?.addEventListener('click', () => {
+    window.print();
+  });
+
+  window.addEventListener('beforeunload', () => {
+    window.__budgetRtlSpreadsheetActive = false;
+    univer.dispose();
+  }, { once: true });
 }
 
 startEditor().catch((error) => {

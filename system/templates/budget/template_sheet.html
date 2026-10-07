@@ -7,6 +7,12 @@
   .template-row-title .js-template-row-label { font-weight: 700; text-align: center; }
   .template-row-total .js-template-row-label,
   .template-row-subtotal .js-template-row-label { font-weight: 700; }
+  .template-runtime-grid .template-row { height: clamp(34px, var(--template-row-height, 40px), 56px); }
+  .template-runtime-grid .template-row > td { padding-top: .25rem; padding-bottom: .25rem; }
+  .template-runtime-grid .form-control,
+  .template-runtime-grid .form-select { min-height: 31px; padding-top: .2rem; padding-bottom: .2rem; }
+  .template-runtime-grid .template-row-label-wrap,
+  .template-runtime-grid .template-runtime-cell { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
   @media print {
     nav, .template-screen-toolbar, .template-help, .template-admin-column,
     .template-row-actions, .pagination, footer { display: none !important; }
@@ -29,7 +35,7 @@
     <div class="text-muted small">نموذج مرن مستورد من Excel · {{ sheet.max_row }} صف × {{ sheet.max_column }} عمود</div>
   </div>
   <div class="d-flex flex-wrap gap-2 template-screen-toolbar">
-    {% if spreadsheet_trial %}<a class="btn btn-success" href="{% url 'budget:template_sheet_spreadsheet' sheet.pk %}">فتح محرر Excel التجريبي</a>{% endif %}
+    <a class="btn btn-success" href="{% url 'budget:template_sheet_spreadsheet' sheet.pk %}">فتح محرر النموذج</a>
     <button class="btn btn-outline-secondary" type="button" onclick="window.print()">طباعة</button>
     <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_monthly_output' sheet.pk %}">النموذج الشهري</a>
     <a class="btn btn-outline-primary" href="{% url 'budget:template_sheet_summary_output' sheet.pk %}">الإجماليات</a>
@@ -78,7 +84,7 @@
         <tr data-row-type="{{ item.row.row_type }}"
             data-full-colspan="{{ columns|length|add:'3' }}"
             class="template-row template-row-{{ item.row.row_type }} {% if item.row.row_type == 'total' or item.row.row_type == 'subtotal' %}table-warning{% elif item.row.row_type == 'header' or item.row.row_type == 'title' %}table-secondary{% endif %}"
-            {% if item.row.height %}style="height:{{ item.row.height }}px"{% endif %}>
+            style="--template-row-height:{% if item.row.height %}{{ item.row.height }}px{% else %}40px{% endif %}">
           <td class="position-sticky start-0 bg-white text-nowrap template-admin-column template-row-actions" style="z-index:2">
             <span class="badge text-bg-light">{{ item.display_number }}</span>
             {% if can_edit %}

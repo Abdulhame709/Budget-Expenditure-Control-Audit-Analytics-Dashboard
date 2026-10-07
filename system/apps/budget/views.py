@@ -1049,21 +1049,17 @@ def template_sheet(request, pk):
         "page_obj": page,
         "sheet_form": sheet_form,
         "can_edit": can_edit,
-        "spreadsheet_trial": spreadsheet.is_trial_sheet(sheet),
     })
 
 
-def _spreadsheet_trial_sheet(pk):
-    sheet = get_object_or_404(
+def _spreadsheet_sheet(pk):
+    return get_object_or_404(
         BudgetTemplateSheet.objects.select_related("template"), pk=pk,
     )
-    if not spreadsheet.is_trial_sheet(sheet):
-        raise Http404("محرر الجداول التجريبي متاح حاليًا لورقة تكلفة مبيعات فقط.")
-    return sheet
 
 
 def template_sheet_spreadsheet(request, pk):
-    sheet = _spreadsheet_trial_sheet(pk)
+    sheet = _spreadsheet_sheet(pk)
     return render(request, "budget/template_spreadsheet.html", {
         "sheet": sheet,
         "template": sheet.template,
@@ -1074,14 +1070,14 @@ def template_sheet_spreadsheet(request, pk):
 
 @require_GET
 def template_sheet_spreadsheet_data(request, pk):
-    sheet = _spreadsheet_trial_sheet(pk)
+    sheet = _spreadsheet_sheet(pk)
     return JsonResponse({"workbook": spreadsheet.workbook_snapshot(sheet)})
 
 
 @require_POST
 @require_permission("budget.edit")
 def template_sheet_spreadsheet_save(request, pk):
-    sheet = _spreadsheet_trial_sheet(pk)
+    sheet = _spreadsheet_sheet(pk)
     try:
         payload = json.loads(request.body or b"{}")
         result = spreadsheet.save_workbook_snapshot(sheet, payload.get("workbook"))

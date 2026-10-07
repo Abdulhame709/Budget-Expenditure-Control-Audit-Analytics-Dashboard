@@ -388,7 +388,7 @@ class BudgetTemplateImportTests(TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_spreadsheet_trial_is_limited_to_sales_cost_sheet(self):
+    def test_spreadsheet_editor_is_available_for_every_template_sheet(self):
         template = import_budget_workbook(
             SimpleUploadedFile("budget.xlsx", sample_workbook_bytes()),
             name="نموذج غير تجريبي", user=self.user,
@@ -397,7 +397,7 @@ class BudgetTemplateImportTests(TestCase):
         response = self.client.get(reverse(
             "budget:template_sheet_spreadsheet", args=[template.sheets.get(name="تفصيلي").pk],
         ))
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
 
 
 # ================================================================ calculations

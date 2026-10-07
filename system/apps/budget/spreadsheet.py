@@ -43,7 +43,7 @@ def _univer_column_width(width) -> float:
     value = float(width)
     if value < 45:
         value = (value * 7) + 12
-    return max(value, 72)
+    return max(value, 120)
 
 
 def _univer_style(cell: BudgetTemplateCell) -> dict:

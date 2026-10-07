@@ -332,6 +332,7 @@ class BudgetTemplateImportTests(TestCase):
         self.assertEqual(worksheet["rightToLeft"], 1)
         self.assertEqual(worksheet["mergeData"][0]["endColumn"], 3)
         self.assertEqual(worksheet["cellData"]["2"]["3"]["f"], "=SUM(C3:C3)")
+        self.assertGreaterEqual(worksheet["columnData"]["0"]["w"], 72)
         self.assertEqual(worksheet["columnData"]["0"]["custom"]["budgetColumnId"], detail.columns.get(column_index=1).pk)
 
     def test_spreadsheet_save_syncs_structure_and_keeps_account_links(self):

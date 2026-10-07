@@ -37,6 +37,15 @@ def _cell_value(cell: BudgetTemplateCell):
     return value
 
 
+def _univer_column_width(width) -> float:
+    if width is None:
+        return 120
+    value = float(width)
+    if value < 45:
+        value = (value * 7) + 12
+    return max(value, 72)
+
+
 def _univer_style(cell: BudgetTemplateCell) -> dict:
     metadata = cell.style_metadata or {}
     if isinstance(metadata.get("univer"), dict):
@@ -70,7 +79,7 @@ def workbook_snapshot(sheet: BudgetTemplateSheet) -> dict:
 
     for index, column in enumerate(columns):
         column_data[index] = {
-            "w": float(column.width) if column.width is not None else 120,
+            "w": _univer_column_width(column.width),
             "hd": bool(column.is_hidden),
             "custom": {"budgetColumnId": column.pk},
         }

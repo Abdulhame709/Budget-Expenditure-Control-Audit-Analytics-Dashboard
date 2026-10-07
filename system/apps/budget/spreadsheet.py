@@ -46,6 +46,21 @@ def _univer_column_width(width) -> float:
     return max(value, 120)
 
 
+def _content_column_widths(rows) -> dict[int, float]:
+    longest_by_column = {}
+    for row in rows:
+        for cell in row.cells.all():
+            value = cell.formula or cell.effective_value or ""
+            longest_by_column[cell.column_id] = max(
+                longest_by_column.get(cell.column_id, 0),
+                len(str(value)),
+            )
+    return {
+        column_id: min(max((length * 8) + 24, 120), 320)
+        for column_id, length in longest_by_column.items()
+    }
+
+
 def _univer_style(cell: BudgetTemplateCell) -> dict:
     metadata = cell.style_metadata or {}
     if isinstance(metadata.get("univer"), dict):
@@ -76,10 +91,14 @@ def workbook_snapshot(sheet: BudgetTemplateSheet) -> dict:
     cell_data = {}
     row_data = {}
     column_data = {}
+    content_widths = _content_column_widths(rows)
 
     for index, column in enumerate(columns):
         column_data[index] = {
-            "w": _univer_column_width(column.width),
+            "w": max(
+                _univer_column_width(column.width),
+                content_widths.get(column.pk, 120),
+            ),
             "hd": bool(column.is_hidden),
             "custom": {"budgetColumnId": column.pk},
         }

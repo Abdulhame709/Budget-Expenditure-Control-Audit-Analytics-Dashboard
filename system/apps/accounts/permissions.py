@@ -172,6 +172,8 @@ URL_PERMISSIONS.update({
     "budget:plan_section_create": "budget.edit",
     "budget:plan_section_edit": "budget.edit",
     "budget:plan_section_delete": "budget.edit",
+    "budget:plan_section_bulk_lines": "budget.edit",
+    "budget:plan_section_import_template": "budget.edit",
     "budget:plan_line_create": "budget.edit",
     "budget:plan_line_edit": "budget.edit",
     "budget:plan_line_delete": "budget.edit",

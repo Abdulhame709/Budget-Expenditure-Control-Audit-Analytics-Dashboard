@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from django import forms
+from django.forms import modelformset_factory
 
 from apps.reference.models import (
     Account,
@@ -324,6 +325,112 @@ class BudgetPlanLineForm(forms.ModelForm):
         if distribution_method != BudgetPlanLine.DIST_SELECTED_MONTHS:
             cleaned["selected_months"] = []
         return cleaned
+
+
+class BudgetPlanBulkLineForm(forms.ModelForm):
+    """Compact editor used to review and save several section lines at once."""
+
+    class Meta:
+        model = BudgetPlanLine
+        fields = [
+            "position", "row_type", "display_name", "main_account",
+            "analytical_account", "input_mode", "distribution_method",
+            "annual_amount", "estimation_basis", "is_included",
+        ]
+        widgets = {
+            "position": forms.NumberInput(attrs={"class": "form-control form-control-sm", "min": 1}),
+            "row_type": forms.Select(attrs={"class": "form-select form-select-sm js-row-type"}),
+            "display_name": forms.TextInput(attrs={"class": "form-control form-control-sm", "placeholder": "اسم البند"}),
+            "main_account": forms.Select(attrs={"class": "form-select form-select-sm js-main-account"}),
+            "analytical_account": forms.Select(attrs={"class": "form-select form-select-sm js-analytical-account"}),
+            "input_mode": forms.Select(attrs={"class": "form-select form-select-sm js-input-mode"}),
+            "distribution_method": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "annual_amount": AMOUNT_INPUT,
+            "estimation_basis": forms.TextInput(attrs={"class": "form-control form-control-sm", "placeholder": "ملاحظة أو أساس التقدير"}),
+            "is_included": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def __init__(self, *args, section=None, **kwargs):
+        self.section = section
+        super().__init__(*args, **kwargs)
+        self.fields["main_account"].queryset = Account.objects.main_accounts().filter(
+            account_type="expense",
+        ).order_by("code")
+        main_account_id = None
+        if self.is_bound:
+            main_account_id = self.data.get(self.add_prefix("main_account"))
+        elif self.instance.pk:
+            main_account_id = self.instance.main_account_id
+        else:
+            initial_account = self.initial.get("main_account")
+            main_account_id = getattr(initial_account, "pk", initial_account)
+            if not main_account_id and self.section and self.section.default_main_account_id:
+                main_account_id = self.section.default_main_account_id
+                self.initial["main_account"] = main_account_id
+        analytical_accounts = Account.objects.none()
+        if str(main_account_id or "").isdigit():
+            analytical_accounts = Account.objects.analytical_for(int(main_account_id)).filter(
+                account_type="expense",
+            ).order_by("code")
+        self.fields["analytical_account"].queryset = analytical_accounts
+        self.fields["main_account"].empty_label = "— الحساب الرئيسي —"
+        self.fields["analytical_account"].empty_label = "— الحساب التحليلي —"
+        self.fields["input_mode"].choices = [
+            (BudgetPlanLine.INPUT_NONE, "بدون إدخال"),
+            (BudgetPlanLine.INPUT_ANNUAL, "مبلغ سنوي"),
+        ]
+        self.fields["distribution_method"].choices = [
+            (BudgetPlanLine.DIST_NONE, "بدون توزيع"),
+            (BudgetPlanLine.DIST_EQUAL, "متساوٍ على 12 شهرًا"),
+            (BudgetPlanLine.DIST_SINGLE_MONTH, "شهر واحد (يستكمل من شاشة البند)"),
+        ]
+
+    def clean(self):
+        cleaned = super().clean()
+        row_type = cleaned.get("row_type")
+        input_rows = {
+            BudgetPlanLine.TYPE_ANALYTICAL_ACCOUNT,
+            BudgetPlanLine.TYPE_DETAIL,
+        }
+        if row_type == BudgetPlanLine.TYPE_MAIN_ACCOUNT:
+            cleaned["analytical_account"] = None
+            cleaned["input_mode"] = BudgetPlanLine.INPUT_NONE
+            cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
+            cleaned["annual_amount"] = 0
+            if not cleaned.get("main_account"):
+                self.add_error("main_account", "اختر الحساب الرئيسي.")
+        elif row_type in input_rows:
+            if not cleaned.get("main_account"):
+                self.add_error("main_account", "اختر الحساب الرئيسي.")
+            if not cleaned.get("analytical_account"):
+                self.add_error("analytical_account", "اختر الحساب التحليلي التابع له.")
+            if cleaned.get("input_mode") == BudgetPlanLine.INPUT_NONE:
+                cleaned["annual_amount"] = 0
+                cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
+            elif cleaned.get("distribution_method") == BudgetPlanLine.DIST_NONE:
+                cleaned["distribution_method"] = BudgetPlanLine.DIST_EQUAL
+        else:
+            cleaned["main_account"] = None
+            cleaned["analytical_account"] = None
+            cleaned["input_mode"] = BudgetPlanLine.INPUT_NONE
+            cleaned["distribution_method"] = BudgetPlanLine.DIST_NONE
+            cleaned["annual_amount"] = 0
+        return cleaned
+
+    def validate_unique(self):
+        # The formset validates duplicate positions across all submitted rows.
+        # Skipping the per-form database lookup also permits swapping positions
+        # because the view temporarily moves stored positions before saving.
+        return None
+
+
+def budget_plan_bulk_line_formset(*, extra=5):
+    return modelformset_factory(
+        BudgetPlanLine,
+        form=BudgetPlanBulkLineForm,
+        extra=extra,
+        can_delete=True,
+    )
 
 
 class BudgetPlanSalaryComponentForm(forms.ModelForm):

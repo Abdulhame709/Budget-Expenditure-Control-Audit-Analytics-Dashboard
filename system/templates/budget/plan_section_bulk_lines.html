@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}الإدخال الجماعي لبنود الموازنة{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">الإدخال الجماعي — {{ section.name }}</h1>
+    <div class="text-muted">{{ plan }}{% if section.department %} · {{ section.department }}{% endif %}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% url 'budget:plan_detail' plan.pk %}#section-{{ section.pk }}">العودة إلى النموذج</a>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <h2 class="h6">استيراد Excel لهذا القسم</h2>
+    <p class="small text-muted mb-2">يمكن أن يحتوي الملف على ورقة باسم القسم؛ وإلا تُقرأ الورقة النشطة. تتم المعاينة أولًا ولا يُحفظ أي بند قبل الضغط على «حفظ الكل».</p>
+    <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="preview_excel">
+      <div class="col-lg-7">
+        <label class="form-label" for="excel_file">ملف Excel بصيغة xlsx</label>
+        <input class="form-control" id="excel_file" name="excel_file" type="file" accept=".xlsx" required>
+      </div>
+      <div class="col-auto"><button class="btn btn-outline-primary" type="submit">معاينة الملف</button></div>
+      <div class="col-auto"><a class="btn btn-outline-success" href="{% url 'budget:plan_section_import_template' section.pk %}">تنزيل قالب الاستيراد</a></div>
+    </form>
+    {% if imported_sheet %}<div class="alert alert-success py-2 mt-3 mb-0">ورقة المعاينة: {{ imported_sheet }}</div>{% endif %}
+    {% if import_warnings %}
+      <div class="alert alert-warning mt-3 mb-0"><strong>ملاحظات المطابقة:</strong><ul class="mb-0 mt-1">{% for warning in import_warnings %}<li>{{ warning }}</li>{% endfor %}</ul></div>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" id="bulk-lines-form">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="save">
+  {{ formset.management_form }}
+  {% if formset.non_form_errors %}<div class="alert alert-danger">{{ formset.non_form_errors }}</div>{% endif %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div><strong>بنود القسم</strong><div class="small text-muted">يمكن تعديل البنود الحالية وإضافة عدة بنود وحفظها دفعة واحدة.</div></div>
+      <button class="btn btn-sm btn-outline-primary" id="add-row" type="button">+ إضافة صف</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" id="bulk-lines-table">
+        <thead class="table-light"><tr><th style="min-width:75px">الترتيب</th><th style="min-width:130px">النوع</th><th style="min-width:210px">اسم البند</th><th style="min-width:220px">الحساب الرئيسي</th><th style="min-width:240px">الحساب التحليلي</th><th style="min-width:130px">الإدخال</th><th style="min-width:175px">التوزيع</th><th style="min-width:125px">المبلغ السنوي</th><th style="min-width:220px">أساس التقدير</th><th>مضمن</th><th>حذف</th></tr></thead>
+        <tbody>
+          {% for form in formset %}
+          <tr class="bulk-line-row">
+            <td>{{ form.id }}{{ form.position }}{{ form.position.errors }}</td>
+            <td>{{ form.row_type }}{{ form.row_type.errors }}</td>
+            <td>{{ form.display_name }}{{ form.display_name.errors }}</td>
+            <td>{{ form.main_account }}{{ form.main_account.errors }}</td>
+            <td>{{ form.analytical_account }}{{ form.analytical_account.errors }}</td>
+            <td>{{ form.input_mode }}{{ form.input_mode.errors }}</td>
+            <td>{{ form.distribution_method }}{{ form.distribution_method.errors }}</td>
+            <td>{{ form.annual_amount }}{{ form.annual_amount.errors }}</td>
+            <td>{{ form.estimation_basis }}{{ form.estimation_basis.errors }}{% if form.non_field_errors %}<div class="text-danger small">{{ form.non_field_errors }}</div>{% endif %}</td>
+            <td class="text-center">{{ form.is_included }}</td>
+            <td class="text-center">{{ form.DELETE }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-end gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'budget:plan_detail' plan.pk %}#section-{{ section.pk }}">إلغاء</a>
+      <button class="btn btn-primary" type="submit">حفظ الكل</button>
+    </div>
+  </div>
+</form>
+
+<template id="empty-row-template">
+  <tr class="bulk-line-row">
+    <td>{{ formset.empty_form.id }}{{ formset.empty_form.position }}</td>
+    <td>{{ formset.empty_form.row_type }}</td>
+    <td>{{ formset.empty_form.display_name }}</td>
+    <td>{{ formset.empty_form.main_account }}</td>
+    <td>{{ formset.empty_form.analytical_account }}</td>
+    <td>{{ formset.empty_form.input_mode }}</td>
+    <td>{{ formset.empty_form.distribution_method }}</td>
+    <td>{{ formset.empty_form.annual_amount }}</td>
+    <td>{{ formset.empty_form.estimation_basis }}</td>
+    <td class="text-center">{{ formset.empty_form.is_included }}</td>
+    <td class="text-center">{{ formset.empty_form.DELETE }}</td>
+  </tr>
+</template>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const total = document.getElementById('id_lines-TOTAL_FORMS');
+  const tbody = document.querySelector('#bulk-lines-table tbody');
+  const template = document.getElementById('empty-row-template');
+  const endpoint = "{% url 'budget:plan_analytical_accounts' %}";
+
+  document.getElementById('add-row').addEventListener('click', () => {
+    const index = Number(total.value);
+    tbody.insertAdjacentHTML('beforeend', template.innerHTML.replaceAll('__prefix__', index));
+    total.value = index + 1;
+    const row = tbody.lastElementChild;
+    const positions = [...tbody.querySelectorAll('input[name$="-position"]')].map(input => Number(input.value) || 0);
+    row.querySelector('input[name$="-position"]').value = Math.max(...positions, 0) + 1;
+  });
+
+  async function loadAnalytical(mainSelect) {
+    const row = mainSelect.closest('tr');
+    const analytical = row.querySelector('.js-analytical-account');
+    analytical.innerHTML = '<option value="">— الحساب التحليلي —</option>';
+    if (!mainSelect.value) return;
+    const response = await fetch(`${endpoint}?main_account=${encodeURIComponent(mainSelect.value)}`);
+    const data = await response.json();
+    data.results.forEach(item => analytical.add(new Option(item.text, item.id)));
+  }
+
+  tbody.addEventListener('change', event => {
+    if (event.target.classList.contains('js-main-account')) loadAnalytical(event.target);
+  });
+})();
+</script>
+{% endblock %}

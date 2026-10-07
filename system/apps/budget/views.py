@@ -17,7 +17,7 @@ from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import models, transaction
 from django.db.models import Count, Q
 from django.db.models.deletion import ProtectedError
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -41,6 +41,7 @@ from .models import (
     BudgetVersion,
 )
 from .template_import import import_budget_workbook
+from .plan_line_import import PlanLineImportError, parse_plan_lines_workbook
 
 
 # ---------------------------------------------------------------- list
@@ -926,6 +927,141 @@ def plan_line_edit(request, pk):
     line = get_object_or_404(BudgetPlanLine.objects.select_related("section__plan"), pk=pk)
     _ensure_plan_editable(line.plan)
     return _line_form_response(request, line.section, line)
+
+
+@require_permission("budget.edit")
+def plan_section_bulk_lines(request, pk):
+    section = get_object_or_404(
+        BudgetPlanSection.objects.select_related("plan", "department"), pk=pk,
+    )
+    _ensure_plan_editable(section.plan)
+    imported_rows = []
+    import_warnings = []
+    imported_sheet = ""
+    action = request.POST.get("action") if request.method == "POST" else ""
+
+    if action == "preview_excel":
+        upload = request.FILES.get("excel_file")
+        if upload is None:
+            messages.error(request, "اختر ملف Excel أولًا.")
+        elif not upload.name.lower().endswith(".xlsx"):
+            messages.error(request, "الصيغة المدعومة في هذه المرحلة هي xlsx فقط.")
+        elif upload.size > 10 * 1024 * 1024:
+            messages.error(request, "حجم الملف يتجاوز الحد المسموح (10 ميجابايت).")
+        else:
+            try:
+                imported_rows, import_warnings, imported_sheet = parse_plan_lines_workbook(
+                    upload, section,
+                )
+            except PlanLineImportError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(
+                    request,
+                    f"تمت قراءة {len(imported_rows)} بندًا من ورقة «{imported_sheet}». راجعها ثم اضغط حفظ الكل.",
+                )
+
+    extra = len(imported_rows) if imported_rows else 5
+    FormSet = forms.budget_plan_bulk_line_formset(extra=extra)
+    queryset = section.lines.select_related("main_account", "analytical_account").order_by(
+        "position", "pk",
+    )
+    if action == "save":
+        formset = FormSet(
+            request.POST, queryset=queryset, prefix="lines",
+            form_kwargs={"section": section},
+        )
+        if formset.is_valid():
+            saved_count = 0
+            deleted_count = 0
+            try:
+                with transaction.atomic():
+                    section.lines.update(position=models.F("position") + 1000000)
+                    for form in formset.forms:
+                        if not form.cleaned_data:
+                            continue
+                        instance = form.instance
+                        if form.cleaned_data.get("DELETE"):
+                            if instance.pk:
+                                instance.delete()
+                                deleted_count += 1
+                            continue
+                        instance = form.save(commit=False)
+                        instance.section = section
+                        instance.department = section.department
+                        if not instance.pk:
+                            instance.created_by = request.user
+                        instance.updated_by = request.user
+                        instance.full_clean()
+                        instance.save()
+                        services.sync_plan_line_amounts(instance)
+                        saved_count += 1
+            except (ValidationError, ProtectedError) as exc:
+                messages.error(request, f"تعذر حفظ البنود: {exc}")
+            else:
+                log_action(
+                    action="budget_plan_line_updated", entity_type="budgetplansection",
+                    entity_id=section.pk,
+                    diff={"bulk_saved": saved_count, "bulk_deleted": deleted_count},
+                    request=request,
+                )
+                messages.success(
+                    request,
+                    f"تم حفظ {saved_count} بندًا" + (
+                        f" وحذف {deleted_count} بندًا." if deleted_count else "."
+                    ),
+                )
+                return redirect(f"{reverse('budget:plan_detail', args=[section.plan_id])}#section-{section.pk}")
+    else:
+        formset = FormSet(
+            queryset=queryset, initial=imported_rows, prefix="lines",
+            form_kwargs={"section": section},
+        )
+
+    return render(request, "budget/plan_section_bulk_lines.html", {
+        "plan": section.plan,
+        "section": section,
+        "formset": formset,
+        "import_warnings": import_warnings,
+        "imported_sheet": imported_sheet,
+    })
+
+
+@require_permission("budget.edit")
+@require_GET
+def plan_section_import_template(request, pk):
+    import re
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    section = get_object_or_404(BudgetPlanSection.objects.select_related("plan"), pk=pk)
+    _ensure_plan_editable(section.plan)
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = re.sub(r"[\\/*?:\[\]]", "-", section.name)[:31] or "بنود القسم"
+    headers = [
+        "الترتيب", "نوع الصف", "اسم البند", "الحساب الرئيسي",
+        "الحساب التحليلي", "طريقة الإدخال", "طريقة التوزيع",
+        "المبلغ السنوي", "أساس التقدير", "مضمن",
+    ]
+    worksheet.append(headers)
+    for cell in worksheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="1F4E78")
+    worksheet.freeze_panes = "A2"
+    worksheet.sheet_view.rightToLeft = True
+    worksheet.column_dimensions["C"].width = 34
+    worksheet.column_dimensions["D"].width = 24
+    worksheet.column_dimensions["E"].width = 28
+    worksheet.column_dimensions["I"].width = 36
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="budget-section-lines-template.xlsx"'
+    workbook.save(response)
+    workbook.close()
+    return response
 
 
 @require_permission("budget.edit")

@@ -1,8 +1,10 @@
 from datetime import date
 from decimal import Decimal
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -592,3 +594,75 @@ class BudgetPlanHttpTests(BudgetPlanFixture):
         self.assertEqual(line.salary_components.count(), 3)
         self.assertEqual(line.annual_amount, Decimal("1392000.00"))
         self.assertEqual(line.salary_components.filter(created_by=self.admin).count(), 3)
+
+    def test_bulk_editor_saves_multiple_lines_and_monthly_distributions(self):
+        data = {
+            "action": "save",
+            "lines-TOTAL_FORMS": "2",
+            "lines-INITIAL_FORMS": "0",
+            "lines-MIN_NUM_FORMS": "0",
+            "lines-MAX_NUM_FORMS": "1000",
+        }
+        for index, name in enumerate(("طباعة التذاكر", "أجور التختيم")):
+            data.update({
+                f"lines-{index}-position": str(index + 1),
+                f"lines-{index}-row_type": BudgetPlanLine.TYPE_DETAIL,
+                f"lines-{index}-display_name": name,
+                f"lines-{index}-main_account": str(self.main_account.pk),
+                f"lines-{index}-analytical_account": str(self.analytical_account.pk),
+                f"lines-{index}-input_mode": BudgetPlanLine.INPUT_ANNUAL,
+                f"lines-{index}-distribution_method": BudgetPlanLine.DIST_EQUAL,
+                f"lines-{index}-annual_amount": str(1200 * (index + 1)),
+                f"lines-{index}-estimation_basis": "استيراد/إدخال جماعي",
+                f"lines-{index}-is_included": "on",
+            })
+        response = self.client_for(self.admin).post(
+            reverse("budget:plan_section_bulk_lines", args=[self.section.pk]), data,
+        )
+        self.assertRedirects(
+            response,
+            f"{reverse('budget:plan_detail', args=[self.plan.pk])}#section-{self.section.pk}",
+        )
+        self.assertEqual(self.section.lines.count(), 2)
+        self.assertEqual(
+            self.section.lines.filter(period_amounts__isnull=False).distinct().count(), 2,
+        )
+
+    def test_excel_preview_matches_section_accounts_without_saving(self):
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = self.section.name
+        worksheet.append([
+            "الترتيب", "نوع الصف", "اسم البند", "الحساب الرئيسي",
+            "الحساب التحليلي", "طريقة الإدخال", "طريقة التوزيع",
+            "المبلغ السنوي", "أساس التقدير", "مضمن",
+        ])
+        worksheet.append([
+            1, "تفصيل", "قيمة التذاكر", self.main_account.code,
+            self.analytical_account.code, "مبلغ سنوي", "متساوي",
+            12000, "وفق خطة المبيعات", "نعم",
+        ])
+        payload = BytesIO()
+        workbook.save(payload)
+        workbook.close()
+        upload = SimpleUploadedFile(
+            "section.xlsx", payload.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response = self.client_for(self.admin).post(
+            reverse("budget:plan_section_bulk_lines", args=[self.section.pk]),
+            {"action": "preview_excel", "excel_file": upload},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "قيمة التذاكر")
+        self.assertContains(response, self.main_account.name)
+        self.assertEqual(self.section.lines.count(), 0)
+
+    def test_bulk_import_template_is_downloadable(self):
+        response = self.client_for(self.admin).get(
+            reverse("budget:plan_section_import_template", args=[self.section.pk]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("spreadsheetml", response["Content-Type"])

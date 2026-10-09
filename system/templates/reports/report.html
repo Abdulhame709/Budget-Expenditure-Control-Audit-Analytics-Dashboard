@@ -3,6 +3,7 @@
 {% block title %}{{ report.title_ar }}{% endblock %}
 {% block content %}
 {% perm user "reports.generate" as can_generate %}
+<section class="report-print-area">
 
 <!-- رأس يظهر فقط عند الطباعة (Print CSS) -->
 <div class="print-only print-header">
@@ -166,4 +167,5 @@
     </table>
   </div>
 </div>
+</section>
 {% endblock %}

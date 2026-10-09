@@ -22,6 +22,13 @@
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'imports:file' job.pk %}">تنزيل الملف الأصلي</a>
   </div>
 </div>
+{% if matrix_context %}
+<div class="alert alert-info py-2 small">
+  سياق الملف: {{ matrix_context.layout }} · الإدارة: {{ matrix_context.department|default:"—" }} ·
+  {% if job.target == "budget_matrix" %}نسخة الموازنة{% else %}الفترة الشهرية{% endif %}:
+  {{ matrix_context.scope|default:"—" }}. هذه الخيارات لا تتطلب أعمدة في Excel.
+</div>
+{% endif %}
 
 {# ---------------------------------------------------------------- summary #}
 {% if job.summary %}
@@ -60,8 +67,8 @@
 {% if job.status == "completed" %}
 <div class="alert alert-success">
   تم استيراد <strong>{{ job.imported_count }}</strong> صف بنجاح من أصل
-  {{ counts.total }} (تجاوزٌ عن {{ counts.invalid|add:counts.duplicate }} صف غير صالح/مكرر —
-  تمت مراجعتها ولم تُدخل).
+  {{ counts.total }}{% if matrix_context %}؛ صفوف الإجمالي الرئيسية المُغطاة بتحليلياتها أو الصفوف الفعلية الصفرية لم تُسجَّل مرتين.
+  {% else %} (تجاوزٌ عن {{ counts.invalid|add:counts.duplicate }} صف غير صالح/مكرر — تمت مراجعتها ولم تُدخل).{% endif %}
 </div>
 {% endif %}
 
@@ -94,12 +101,17 @@
     </div>
 
     <div class="card border-0 shadow-sm">
-      <div class="card-header bg-white"><strong>مطابقة الأعمدة</strong></div>
+      <div class="card-header bg-white"><strong>{% if matrix_context %}مراجعة وربط الحسابات{% else %}مطابقة الأعمدة{% endif %}</strong></div>
       <div class="card-body">
         <form method="post" action="{% url 'imports:validate' job.pk %}">
           {% csrf_token %}
+          {% if matrix_context %}<p class="small text-muted mb-2">الأعمدة الـ14 تُطابق تلقائيًا حسب ترتيبها: اسم الحساب، يناير–ديسمبر، ثم الإجمالي. لا تحتاج أعمدة إضافية أو اختيار كل شهر يدويًا.</p>{% endif %}
           <div class="row g-2">
             {% for field in mapping_form %}
+            {% if field.name not in mapping_form.account_keys %}
+            {% if matrix_context %}
+            <input type="hidden" name="{{ field.html_name }}" value="{{ field.value|default_if_none:'' }}">
+            {% else %}
             <div class="col-md-6">
               <label class="form-label small mb-1">{{ field.label }}
                 {% if field.name|cut:"map-" in mapping_form.required_keys %}<span class="text-danger">*</span>{% endif %}
@@ -107,8 +119,26 @@
               {{ field }}
               {{ field.errors }}
             </div>
+            {% endif %}
+            {% endif %}
             {% endfor %}
           </div>
+          {% if mapping_form.account_keys %}
+          <div class="border-top mt-3 pt-3">
+            <h3 class="h6">ربط أسماء حسابات الملف بدليل الحسابات</h3>
+            <p class="text-muted small">الأسماء غير المطابقة تمامًا تحتاج اختيار حساب موجود. قارن رقم الحساب والمستوى قبل الاعتماد؛ لن ينشئ النظام حسابات جديدة.</p>
+            <div class="row g-2">
+              {% for field in mapping_form %}
+              {% if field.name in mapping_form.account_keys %}
+              <div class="col-md-6">
+                <label class="form-label small mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}{{ field.errors }}
+              </div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
           {% if mapping_form.non_field_errors %}
           <div class="alert alert-danger mt-2 mb-0 small">{{ mapping_form.non_field_errors }}</div>
           {% endif %}

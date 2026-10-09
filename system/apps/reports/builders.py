@@ -6,7 +6,7 @@
 from collections import OrderedDict
 from decimal import Decimal
 
-from django.db.models import Count, Max, Sum
+from django.db.models import Count, Exists, Max, OuterRef, Q, Subquery, Sum
 
 from apps.audit_register.models import (
     AuditException,
@@ -14,7 +14,7 @@ from apps.audit_register.models import (
     AuditRun,
     AuditTestResult,
 )
-from apps.budget.models import BudgetLine
+from apps.budget.models import BudgetLine, BudgetVersion
 from apps.expenses.models import Expense
 
 D = Decimal
@@ -104,7 +104,16 @@ def resolve_window(filters: dict):
 
 
 def filtered_budget_lines(filters, fy):
-    qs = BudgetLine.objects.filter(version__status="approved")
+    latest_approved = BudgetVersion.objects.filter(
+        budget_id=OuterRef("version__budget_id"), status=BudgetVersion.STATUS_APPROVED,
+    ).order_by("-version").values("pk")[:1]
+    qs = BudgetLine.objects.filter(version_id=Subquery(latest_approved))
+    analytical_siblings = BudgetLine.objects.filter(
+        version_id=OuterRef("version_id"), department_id=OuterRef("department_id"),
+        account_id=OuterRef("account_id"), analytical_account__isnull=False,
+    )
+    qs = qs.alias(has_analytical=Exists(analytical_siblings)).filter(
+        Q(analytical_account__isnull=False) | Q(has_analytical=False))
     if fy is not None:
         qs = qs.filter(version__budget__fiscal_year=fy)
     if filters["department"]:
@@ -212,7 +221,7 @@ def build_variance(f, w):
     for line in lines:
         for m in months:
             key = (line.department_id, line.account_id, m)
-            budget[key] = D(getattr(line, f"m{m:02d}") or "0")
+            budget[key] = budget.get(key, D("0")) + D(getattr(line, f"m{m:02d}") or "0")
             labels[key] = (line.department.name, line.account.name, m)
     actual: dict[tuple, Decimal] = {}
     for row in exps.values("department_id", "account_id",

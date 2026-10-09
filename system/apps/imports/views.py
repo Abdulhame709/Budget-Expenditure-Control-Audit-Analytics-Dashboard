@@ -108,6 +108,16 @@ def import_new(request):
                 request=request)
             try:
                 svc.extract_job(job)
+                if job.target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+                    job.column_map["_context"] = {
+                        "department_id": form.cleaned_data["department"].pk,
+                        "layout": form.cleaned_data["matrix_layout"],
+                        "version_id": (form.cleaned_data["budget_version"].pk
+                                       if job.target == ImportJob.TARGET_BUDGET_MATRIX else None),
+                        "period_id": (form.cleaned_data["period"].pk
+                                      if job.target == ImportJob.TARGET_ACTUAL_MATRIX else None),
+                    }
+                    job.save(update_fields=["column_map", "updated_at"])
                 if job.target == ImportJob.TARGET_DETAILED_BUDGET:
                     # re-run the extractor over the saved file to build the sheet archive
                     job.source_file.open("rb")
@@ -142,16 +152,35 @@ def import_detail(request, pk):
     if (job.status in (ImportJob.STATUS_EXTRACTED,
                        ImportJob.STATUS_VALIDATED) and job.headers
             and job.target != ImportJob.TARGET_DETAILED_BUDGET):
+        from apps.imports.matrix import unmapped_accounts
+        matrix = job.target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX)
         mapping_form = MappingForm(
             headers=job.headers, target=job.target, prefix="map",
             initial={k: (job.column_map or {}).get(k, "")
-                     for k, _ in svc.get_target_fields(job.target)})
+                     for k, _ in svc.get_target_fields(job.target)},
+            account_names=unmapped_accounts(job) if matrix else None,
+            account_initial=job.column_map.get("_accounts", {}) if matrix else None)
         preview_rows = [
             {"index": r["index"],
              "cells": [r["source"].get(h, "") for h in job.headers]}
             for r in job.rows[:10]
         ]
     detailed_sheets = []
+    matrix_context = None
+    if job.target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        from apps.budget.models import BudgetVersion
+        from apps.reference.models import Department, MonthlyPeriod
+        selected = (job.column_map or {}).get("_context", {})
+        department = Department.objects.filter(pk=selected.get("department_id")).first()
+        scope = (BudgetVersion.objects.filter(pk=selected.get("version_id")).first()
+                 if job.target == ImportJob.TARGET_BUDGET_MATRIX else
+                 MonthlyPeriod.objects.filter(pk=selected.get("period_id")).first())
+        matrix_context = {
+            "department": department,
+            "scope": scope,
+            "layout": "الرئيسية فقط (مستوى 5)" if selected.get("layout") == "main_only"
+                      else "الرئيسية والتحليلية (مستوى 5 و6)",
+        }
     if job.target == ImportJob.TARGET_DETAILED_BUDGET:
         for sheet in job.detailed_sheets.all():
             row_count = len(sheet.rows)
@@ -177,6 +206,7 @@ def import_detail(request, pk):
         "header_labels": svc.header_labels(job.headers, job.target)
         if job.headers else {},
         "detailed_sheets": detailed_sheets,
+        "matrix_context": matrix_context,
         "detailed_sheet_preview_limit": DETAILED_SHEET_PREVIEW_LIMIT,
     }
     return render(request, "imports/detail.html", context)
@@ -191,15 +221,26 @@ def import_validate(request, pk):
                           ImportJob.STATUS_VALIDATED):
         messages.error(request, "لا يمكن التحقق من هذه الحالة.")
         return redirect("imports:detail", job.pk)
-    form = MappingForm(headers=job.headers, target=job.target, data=request.POST, prefix="map")
+    from apps.imports.matrix import unmapped_accounts
+    matrix = job.target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX)
+    form = MappingForm(headers=job.headers, target=job.target, data=request.POST, prefix="map",
+                       account_names=unmapped_accounts(job) if matrix else None)
     if not form.is_valid():
         for field, errs in form.errors.items():
             for msg in errs:
                 messages.error(request, f"{msg}")
         return redirect("imports:detail", job.pk)
+    context = (job.column_map or {}).get("_context")
     job.column_map = {
         key: (form.cleaned_data.get(key) or "")
         for key, _ in svc.get_target_fields(job.target)}
+    if job.target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        job.column_map["_context"] = context or {}
+        job.column_map["_accounts"] = {
+            normalized: form.cleaned_data.get(key) or (job.column_map or {}).get("_accounts", {}).get(normalized, "")
+            for key, normalized in form.account_names_by_key.items()
+            if form.cleaned_data.get(key)
+        }
     job.save(update_fields=["column_map", "updated_at"])
     try:
         summary = svc.validate_job(job, request.user, request=request)
@@ -258,6 +299,14 @@ def import_template(request, target):
     valid_targets = {value for value, _label in ImportJob.TARGET_CHOICES}
     if target not in valid_targets:
         raise Http404("هدف استيراد غير معروف")
+    if target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        from apps.imports.matrix import template_xlsx
+        response = HttpResponse(
+            template_xlsx(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="monthly-account-matrix.xlsx"'
+        return response
     if target == ImportJob.TARGET_ACCOUNTS:
         response = HttpResponse(
             svc.build_accounts_template_xlsx(),

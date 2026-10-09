@@ -527,6 +527,12 @@ html[data-theme="dark"] .btn-close { filter: invert(1) grayscale(1); }
 .report-table th, .report-table td { border: 1px solid #dee2e6; }
 
 @media print {
+  @page report-page { size: A4 landscape; margin: 12mm; }
+  body:has(.report-print-area) > :not(main):not(script) { display: none !important; }
+  body:has(.report-print-area) main > :not(.report-print-area) { display: none !important; }
+  .report-print-area { page: report-page; width: 100%; }
+  .report-print-area .table-responsive { overflow: visible !important; }
+  .report-print-area .row .card { break-inside: avoid; }
   nav, footer, .no-print, .alert, form.card, button, .btn,
   [class*="btn-"] { display: none !important; }
   .print-only { display: block !important; }

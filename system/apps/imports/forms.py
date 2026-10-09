@@ -7,8 +7,10 @@ from zipfile import BadZipFile, ZipFile
 from django import forms
 from django.core.exceptions import ValidationError
 
+from apps.budget.models import BudgetVersion
 from apps.imports.models import ImportJob
 from apps.imports.services import MAX_FILE_MB, detect_format
+from apps.reference.models import Department, MonthlyPeriod
 
 MAX_XLSX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
 MAX_XLSX_MEMBERS = 2_000
@@ -63,11 +65,47 @@ class ImportUploadForm(forms.Form):
         widget=forms.FileInput(attrs={
             "class": "form-control", "accept": ".csv,.xlsx,.pdf"}),
     )
+    budget_version = forms.ModelChoiceField(
+        label="نسخة الموازنة (مسودة)", queryset=BudgetVersion.objects.none(), required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    period = forms.ModelChoiceField(
+        label="الفترة التي تُرفع لها المصروفات الفعلية", queryset=MonthlyPeriod.objects.none(), required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    department = forms.ModelChoiceField(
+        label="الإدارة لجميع صفوف الملف", queryset=Department.objects.none(), required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    matrix_layout = forms.ChoiceField(
+        label="نوع الحسابات في النموذج", required=False, initial="mixed",
+        choices=(("mixed", "الرئيسية مستوى 5 مع التحليلية مستوى 6"),
+                 ("main_only", "الرئيسية مستوى 5 فقط")),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["budget_version"].queryset = BudgetVersion.objects.filter(
+            status=BudgetVersion.STATUS_DRAFT).select_related("budget")
+        self.fields["period"].queryset = MonthlyPeriod.objects.filter(
+            is_active=True).select_related("fiscal_year")
+        self.fields["department"].queryset = Department.objects.filter(is_active=True)
 
     def clean(self):
         cleaned = super().clean()
         target = cleaned.get("target")
         upload = cleaned.get("source_file")
+        if target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+            if not cleaned.get("matrix_layout"):
+                self.add_error("matrix_layout", "اختر نوع الحسابات في النموذج.")
+            if not cleaned.get("department"):
+                self.add_error("department", "اختر إدارة الملف قبل الرفع.")
+            needed = "budget_version" if target == ImportJob.TARGET_BUDGET_MATRIX else "period"
+            if not cleaned.get(needed):
+                self.add_error(needed, "اختر سياق الملف قبل الرفع.")
+            if upload is not None and not upload.name.lower().endswith(".xlsx"):
+                self.add_error("source_file", "هذا النموذج يقبل ملف Excel (xlsx) فقط.")
         if target == ImportJob.TARGET_DETAILED_BUDGET and upload is not None:
             name = (getattr(upload, "name", "") or "").lower()
             if not name.endswith(".xlsx"):
@@ -89,7 +127,8 @@ class ImportUploadForm(forms.Form):
 class MappingForm(forms.Form):
     """Dynamic target←header mapping; required targets share one Arabic error."""
 
-    def __init__(self, headers: list[str], *args, target=ImportJob.TARGET_EXPENSES, **kwargs):
+    def __init__(self, headers: list[str], *args, target=ImportJob.TARGET_EXPENSES,
+                 account_names=None, account_initial=None, **kwargs):
         super().__init__(*args, **kwargs)
         choices = [("", "— غير مطابق —")] + [(header, header) for header in headers]
         from apps.imports.services import get_required_fields, get_target_fields
@@ -102,6 +141,23 @@ class MappingForm(forms.Form):
                 choices=choices,
                 widget=forms.Select(attrs={"class": "form-select"}),
             )
+        self.account_keys = set()
+        self.account_names_by_key = {}
+        if target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+            from apps.reference.models import Account
+            choices = [("", "— اختر حساب الدليل —")]
+            choices.extend((str(account.pk), f"{account.code} — {account.name} (مستوى {account.level})")
+                           for account in Account.objects.filter(is_active=True, account_type="expense",
+                                                                  level__in=[5, 6]).order_by("code"))
+            for index, (normalized, name) in enumerate((account_names or {}).items()):
+                key = f"account_row_{index}"
+                self.fields[key] = forms.ChoiceField(
+                    label=f"{name} — حساب الدليل", choices=choices, required=False,
+                    initial=str((account_initial or {}).get(normalized, "")),
+                    widget=forms.Select(attrs={"class": "form-select"}),
+                )
+                self.account_keys.add(key)
+                self.account_names_by_key[key] = normalized
 
     def clean(self):
         cleaned = super().clean()

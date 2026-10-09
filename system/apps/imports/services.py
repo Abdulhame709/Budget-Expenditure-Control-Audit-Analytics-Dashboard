@@ -109,6 +109,9 @@ _DETAILED_BUDGET_FIELDS: list[tuple[str, str]] = [
 
 
 def get_target_fields(target: str) -> list[tuple[str, str]]:
+    if target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        from apps.imports.matrix import FIELDS
+        return FIELDS
     if target == ImportJob.TARGET_EXPENSES:
         return TARGET_FIELDS
     if target == ImportJob.TARGET_DETAILED_BUDGET:
@@ -117,6 +120,9 @@ def get_target_fields(target: str) -> list[tuple[str, str]]:
 
 
 def get_required_fields(target: str):
+    if target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        from apps.imports.matrix import FIELDS
+        return tuple(key for key, _ in FIELDS)
     if target == ImportJob.TARGET_EXPENSES:
         return _REQUIRED
     if target == ImportJob.TARGET_DETAILED_BUDGET:
@@ -136,6 +142,9 @@ _DETAILED_BUDGET_ALIASES: dict[str, tuple[str, ...]] = {
 def suggest_mapping(headers: list[str], target: str = ImportJob.TARGET_EXPENSES) -> dict[str, str]:
     """Auto-suggest target←source mapping from header names (ar/en aliases)."""
     normed = {_norm(h): h for h in headers}
+    if target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        from apps.imports.matrix import FIELDS
+        return {key: header for (key, _), header in zip(FIELDS, headers)} if len(headers) == 14 else {}
     mapping: dict[str, str] = {}
     fields = get_target_fields(target)
     if target == ImportJob.TARGET_EXPENSES:
@@ -178,6 +187,8 @@ def header_labels(headers: list[str], target: str) -> dict[str, str]:
     3) fallback: the raw header unchanged (dir="ltr" keeps it readable).
     """
     target_fields = get_target_fields(target)
+    if target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        return {header: label for (_, label), header in zip(target_fields, headers)}
     by_label = {_norm(label): label for _key, label in target_fields}
     if target == ImportJob.TARGET_EXPENSES:
         aliases = _ALIASES
@@ -657,6 +668,9 @@ def extract_job(job: ImportJob) -> None:
 
 
 def validate_job(job, user, request=None):
+    if job.target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        from apps.imports.matrix import validate_matrix
+        return validate_matrix(job, user, request=request)
     if job.target == ImportJob.TARGET_DETAILED_BUDGET:
         # archive only — no row-wise mapping needed; sheets already extracted
         job.status = ImportJob.STATUS_VALIDATED
@@ -669,6 +683,9 @@ def validate_job(job, user, request=None):
 
 
 def run_import(job, user, request=None):
+    if job.target in (ImportJob.TARGET_BUDGET_MATRIX, ImportJob.TARGET_ACTUAL_MATRIX):
+        from apps.imports.matrix import import_matrix
+        return import_matrix(job, user, request=request)
     if job.target == ImportJob.TARGET_DETAILED_BUDGET:
         raise ValidationError(
             "الموازنة التفصيلية الأولية أرشيف مرجعي — لا تُنفَّذ إلى سطور موازنة "

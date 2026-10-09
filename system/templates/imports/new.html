@@ -26,6 +26,26 @@
             {{ form.target }}
             {{ form.target.errors }}
           </div>
+          <div id="matrix-context" class="border rounded p-3 mb-3" hidden>
+            <p class="small mb-2">Excel: اسم الحساب، الشهور 1–12، الإجمالي. اختر سياق الملف هنا، وليس في أعمدة Excel. سطر المستوى 5 مع تفاصيل المستوى 6 يُستخدم للإجمالي فقط منعًا لمضاعفة المبالغ. ملف الموازنة التفصيلي وملف المستوى 5 فقط بديلان، فلا ترفعهما معًا لنفس النسخة والإدارة.</p>
+            <p class="small text-warning-emphasis mb-2">العملة المعتمدة لهذا المسار هي الريال اليمني (YER) فقط؛ لا ترفع ملفًا بعملة أخرى.</p>
+            <div class="mb-2">
+              <label class="form-label" for="{{ form.matrix_layout.id_for_label }}">{{ form.matrix_layout.label }}</label>
+              {{ form.matrix_layout }}{{ form.matrix_layout.errors }}
+            </div>
+            <div class="mb-2" id="matrix-version">
+              <label class="form-label" for="{{ form.budget_version.id_for_label }}">{{ form.budget_version.label }}</label>
+              {{ form.budget_version }}{{ form.budget_version.errors }}
+            </div>
+            <div class="mb-2" id="matrix-period">
+              <label class="form-label" for="{{ form.period.id_for_label }}">{{ form.period.label }}</label>
+              {{ form.period }}{{ form.period.errors }}
+            </div>
+            <div>
+              <label class="form-label" for="{{ form.department.id_for_label }}">{{ form.department.label }}</label>
+              {{ form.department }}{{ form.department.errors }}
+            </div>
+          </div>
           <div class="mb-3">
             <label class="form-label" for="{{ form.source_file.id_for_label }}">{{ form.source_file.label }}</label>
             {{ form.source_file }}
@@ -47,7 +67,7 @@
           <div class="flex-grow-1">
             <strong>قالب التنزيل — الأعمدة المطلوبة بالعربية</strong>
             <p class="small text-muted mb-2">
-              نزّل قالب CSV جاهزًا لأي هدف؛ الصف الأول هو أسماء الأعمدة بالعربية
+              نزّل قالب Excel ذي 14 عمودًا لنموذج الموازنة أو الفعلي، أو قالب CSV للأهداف الأخرى؛ الصف الأول هو أسماء الأعمدة بالعربية
               (✓ = عمود إلزامي)، والصف الثاني يوضح الإلزامي/الاختياري.
               عبئ بياناتك أسفل الصف الثاني ثم ارفع الملف هنا.
             </p>
@@ -72,4 +92,21 @@
     </div>
   </div>
 </div>
+<script>
+  (() => {
+    const target = document.getElementById('id_target');
+    const box = document.getElementById('matrix-context');
+    const version = document.getElementById('matrix-version');
+    const period = document.getElementById('matrix-period');
+    const update = () => {
+      const budget = target.value === 'budget_matrix';
+      const actual = target.value === 'actual_matrix';
+      box.hidden = !(budget || actual);
+      version.hidden = !budget;
+      period.hidden = !actual;
+    };
+    target.addEventListener('change', update);
+    update();
+  })();
+</script>
 {% endblock %}

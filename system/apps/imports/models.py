@@ -28,6 +28,8 @@ class ImportJob(models.Model):
     TARGET_PROCUREMENTS = "procurements"
     TARGET_QUOTATIONS = "quotations"
     TARGET_DETAILED_BUDGET = "detailed_budget"
+    TARGET_BUDGET_MATRIX = "budget_matrix"
+    TARGET_ACTUAL_MATRIX = "actual_matrix"
     TARGET_CHOICES = [
         (TARGET_FISCAL_YEARS, "السنوات المالية"),
         (TARGET_PERIODS, "الفترات الشهرية"),
@@ -36,6 +38,8 @@ class ImportJob(models.Model):
         (TARGET_ACCOUNTS, "الدليل المحاسبي"),
         (TARGET_SUPPLIERS, "الموردون"),
         (TARGET_BUDGET_LINES, "الموازنة التقديرية — السطور الشهرية"),
+        (TARGET_BUDGET_MATRIX, "الموازنة التقديرية — حسابات مستوى 5 و6 / مستوى 5 فقط"),
+        (TARGET_ACTUAL_MATRIX, "المصروفات الفعلية — إجمالي شهر واحد حسب الحساب"),
         (TARGET_DETAILED_BUDGET, "الموازنة التفصيلية الأولية (أوراق متعددة)"),
         (TARGET_EXPENSES, "المصروفات الفعلية"),
         (TARGET_PROCUREMENTS, "سجلات المشتريات"),
